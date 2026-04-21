@@ -5,7 +5,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { BRANCHES, FLEET_COMPANIES } from '../lib/dummyData'
 import { watchVehicles } from '../lib/vehicles'
-import { watchAppointments, createAppointment } from '../lib/appointments'
+import { watchAppointments, createAppointment, updateAppointmentStatus } from '../lib/appointments'
+import { PMS_ITEMS } from '../lib/mgfms-catalog'
 import StatCard from '../components/ui/StatCard'
 import SlidePanel from '../components/ui/SlidePanel'
 import Icon from '../components/ui/Icon'
@@ -15,6 +16,39 @@ const TIME_SLOTS = [
   '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM', '1:00 PM', '1:30 PM',
   '2:00 PM', '2:30 PM', '3:00 PM', '3:30 PM', '4:00 PM', '4:30 PM', '5:00 PM',
 ]
+
+// Service options for the booking form, sourced from mg-fms PMS catalog so
+// selections line up with the taxonomy mechanics use during diagnosis/PMS.
+// Grouped by catalog category: scheduled / brake / major / troubleshooting.
+const SERVICE_GROUPS = (() => {
+  const order = ['scheduled', 'brake', 'major', 'troubleshooting']
+  const titles = {
+    scheduled: 'Scheduled Maintenance',
+    brake: 'Braking',
+    major: 'Major Service',
+    troubleshooting: 'Troubleshooting',
+  }
+  return order.map((cat) => ({
+    cat,
+    title: titles[cat],
+    options: PMS_ITEMS.filter((p) => p.category === cat).map((p) => p.label),
+  }))
+})()
+
+// Compose an ISO timestamp from a yyyy-mm-dd date and a "H:MM AM/PM" slot.
+function composeScheduledAt(dateStr, timeSlot) {
+  const m = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(String(timeSlot || '').trim())
+  let hh = 8, mm = 0
+  if (m) {
+    hh = Number(m[1]) % 12
+    if (/PM/i.test(m[3])) hh += 12
+    mm = Number(m[2])
+  }
+  const d = new Date(`${dateStr}T00:00:00`)
+  if (isNaN(d)) return new Date().toISOString()
+  d.setHours(hh, mm, 0, 0)
+  return d.toISOString()
+}
 
 export default function ServiceBooking() {
   const { profile } = useAuth()
@@ -53,6 +87,17 @@ export default function ServiceBooking() {
       map[slot].push({ ...a, model: v?.model, yearModel: v?.yearModel })
     }
     return map
+  }, [appointments, vehicles])
+
+  // Tentative fleet bookings (company-tagged + awaiting confirmation). Rendered
+  // as a separate row below the time-slot grid so staff can triage them.
+  const fleetTentative = useMemo(() => {
+    return appointments
+      .filter((a) => a.status === 'TENTATIVE' && a.company)
+      .map((a) => {
+        const v = vehicles.find((x) => x.plateNo === a.plateNo)
+        return { ...a, model: v?.model, yearModel: v?.yearModel }
+      })
   }, [appointments, vehicles])
 
   return (
@@ -95,11 +140,32 @@ export default function ServiceBooking() {
 
       <div className="bg-gray-900 text-white rounded-md px-4 py-2 mt-4 flex items-center justify-between text-sm font-semibold">
         <span>FLEET BOOKINGS</span>
-        <span className="bg-white/10 rounded px-2 py-0.5 text-xs">{stats.tentative}</span>
+        <span className="bg-white/10 rounded px-2 py-0.5 text-xs">{fleetTentative.length}</span>
       </div>
-      <div className="bg-white rounded-md border mt-2 p-6 text-center text-gray-400 text-sm">
-        {stats.tentative === 0 ? 'No fleet bookings for today.' : `${stats.tentative} tentative fleet bookings awaiting confirmation.`}
-      </div>
+      {fleetTentative.length === 0 ? (
+        <div className="bg-white rounded-md border mt-2 p-6 text-center text-gray-400 text-sm">
+          No tentative fleet bookings.
+        </div>
+      ) : (
+        <div className="bg-white rounded-md border mt-2 divide-y">
+          {fleetTentative.map((a) => (
+            <button
+              key={a.id}
+              onClick={() => { setEditId(a.id); setShowPanel(true) }}
+              className="w-full text-left px-4 py-3 hover:bg-amber-50 flex items-center gap-4"
+            >
+              <div className="bg-amber-100 text-amber-800 rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">Tentative</div>
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-sm text-gray-900">{a.plateNo} · {a.customer || '—'}</div>
+                <div className="text-xs text-gray-500 truncate">
+                  {a.company} · {a.scheduledTime || '—'} · {a.model ? `${a.model} (${a.yearModel || ''})` : ''}
+                </div>
+              </div>
+              <div className="text-[11px] text-gray-400">Awaiting confirmation</div>
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="fixed bottom-6 right-6">
         <button
@@ -116,6 +182,7 @@ export default function ServiceBooking() {
           editId={editId}
           branch={branch}
           appointments={appointments}
+          vehicles={vehicles}
           onClose={() => setShowPanel(false)}
         />
       </SlidePanel>
@@ -140,7 +207,7 @@ function BookingCard({ appt, onClick }) {
   )
 }
 
-function BookingForm({ editId, branch, appointments, onClose }) {
+function BookingForm({ editId, branch, appointments, vehicles, onClose }) {
   const existing = editId ? appointments.find((a) => a.id === editId) : null
   const [walkin, setWalkin] = useState(false)
   const [tentative, setTentative] = useState(false)
@@ -154,7 +221,39 @@ function BookingForm({ editId, branch, appointments, onClose }) {
   const [services, setServices] = useState([])
   const [issues, setIssues] = useState([])
   const [saving, setSaving] = useState(false)
+  const [statusActing, setStatusActing] = useState(false)
   const [error, setError] = useState(null)
+
+  // When the plate matches an existing vehicle, surface its metadata so the
+  // staff member can confirm they picked the right unit, and prefill fleet
+  // company + custType when the vehicle belongs to a fleet client.
+  const matchedVehicle = useMemo(() => {
+    if (!plate) return null
+    const up = plate.toUpperCase().replace(/\s+/g, '')
+    return vehicles.find((v) => v.plateNo === up) || null
+  }, [plate, vehicles])
+
+  const onPickPlate = (v) => {
+    setPlate(v.plateNo)
+    if (v.company) {
+      setCustType('fleet')
+      setCompany(v.company)
+    }
+  }
+
+  const onStatusAction = async (nextStatus, note) => {
+    if (!editId) return
+    setStatusActing(true); setError(null)
+    try {
+      await updateAppointmentStatus(editId, nextStatus, note)
+      onClose()
+    } catch (err) {
+      console.error('[booking] updateAppointmentStatus failed', err)
+      setError(err.message || String(err))
+    } finally {
+      setStatusActing(false)
+    }
+  }
 
   const submit = async (e) => {
     e.preventDefault()
@@ -167,7 +266,7 @@ function BookingForm({ editId, branch, appointments, onClose }) {
         mobile,
         company: custType === 'fleet' ? company : null,
         branch,
-        scheduledAt: new Date(`${date}T08:00:00`).toISOString(),
+        scheduledAt: composeScheduledAt(date, time),
         scheduledTime: time,
         servicesInterested: services,
         customerIssues: issues,
@@ -188,6 +287,29 @@ function BookingForm({ editId, branch, appointments, onClose }) {
   return (
     <form onSubmit={submit} className="space-y-4 text-sm">
       {error && <div className="bg-red-50 border border-red-200 text-red-800 rounded px-3 py-2 text-xs">Save failed: {error}</div>}
+
+      {existing && (
+        <div className="bg-gray-50 border rounded-md p-2 flex items-center gap-2">
+          <span className="text-[11px] font-semibold text-gray-500 mr-1">STATUS: {existing.status}</span>
+          {existing.status === 'BOOKED' || existing.status === 'CONFIRMED' || existing.status === 'TENTATIVE' ? (
+            <button type="button" disabled={statusActing}
+              onClick={() => onStatusAction('ARRIVED', 'Vehicle checked in')}
+              className="text-xs bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-2 py-1 rounded">
+              Mark Arrived
+            </button>
+          ) : null}
+          {existing.status !== 'CANCELLED' && existing.status !== 'COMPLETED' ? (
+            <button type="button" disabled={statusActing}
+              onClick={() => {
+                if (!confirm('Cancel this booking?')) return
+                onStatusAction('CANCELLED', 'Booking cancelled')
+              }}
+              className="text-xs bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-2 py-1 rounded">
+              Cancel Booking
+            </button>
+          ) : null}
+        </div>
+      )}
 
       <Row label="Service Center">
         <select value={branch} disabled className="input">
@@ -222,10 +344,19 @@ function BookingForm({ editId, branch, appointments, onClose }) {
       </div>
 
       <Row label="Plate No.*">
-        <div className="flex gap-1">
-          <input value={plate} onChange={(e) => setPlate(e.target.value.toUpperCase())} placeholder="SEARCH VEHICLE..." className="input flex-1 uppercase" required />
-          <button type="button" className="bg-gray-800 text-white px-2 rounded">+</button>
-        </div>
+        <PlatePicker
+          value={plate}
+          vehicles={vehicles}
+          onChange={setPlate}
+          onPick={onPickPlate}
+        />
+        {matchedVehicle && (
+          <div className="mt-2 bg-blue-50 border border-blue-200 text-blue-900 text-xs rounded px-2 py-1.5">
+            {matchedVehicle.brandModel || matchedVehicle.model}
+            {matchedVehicle.yearModel ? ` (${matchedVehicle.yearModel})` : ''}
+            {matchedVehicle.company ? ` · ${matchedVehicle.company}` : ''}
+          </div>
+        )}
       </Row>
 
       <Row label="Customer*">
@@ -250,9 +381,9 @@ function BookingForm({ editId, branch, appointments, onClose }) {
       )}
 
       <Row label="Services Interested*">
-        <MultiSelect
+        <GroupedMultiSelect
           placeholder="SELECT ALL THAT APPLIES"
-          options={['Preventive Maintenance', 'Oil Change', 'Tire Rotation', 'Brake Service', 'Transmission Service', 'AC Repair', 'Diagnostic Check']}
+          groups={SERVICE_GROUPS}
           value={services}
           onChange={setServices}
         />
@@ -273,6 +404,85 @@ function BookingForm({ editId, branch, appointments, onClose }) {
         </button>
       </div>
     </form>
+  )
+}
+
+function PlatePicker({ value, vehicles, onChange, onPick }) {
+  const [open, setOpen] = useState(false)
+  const matches = useMemo(() => {
+    const q = String(value || '').toUpperCase().replace(/\s+/g, '')
+    if (!q) return []
+    return vehicles
+      .filter((v) => v.plateNo?.startsWith(q) && v.plateNo !== q)
+      .slice(0, 8)
+  }, [value, vehicles])
+
+  return (
+    <div className="relative">
+      <div className="flex gap-1">
+        <input
+          value={value}
+          onChange={(e) => { onChange(e.target.value.toUpperCase()); setOpen(true) }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 120)}
+          placeholder="SEARCH VEHICLE..."
+          className="input flex-1 uppercase"
+          required
+        />
+        <button type="button" className="bg-gray-800 text-white px-2 rounded" title="New vehicle (not yet wired)">+</button>
+      </div>
+      {open && matches.length > 0 && (
+        <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-md shadow-lg z-10 max-h-56 overflow-auto">
+          {matches.map((v) => (
+            <button
+              key={v.plateNo}
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); onPick(v); setOpen(false) }}
+              className="w-full text-left px-3 py-1.5 hover:bg-gray-50 text-xs flex items-center justify-between"
+            >
+              <span className="font-semibold">{v.plateNo}</span>
+              <span className="text-gray-500 truncate ml-2">
+                {v.brandModel || v.model || ''}{v.company ? ` · ${v.company}` : ''}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function GroupedMultiSelect({ placeholder, groups, value, onChange }) {
+  const [open, setOpen] = useState(false)
+  const toggle = (opt) => {
+    onChange(value.includes(opt) ? value.filter((o) => o !== opt) : [...value, opt])
+  }
+  return (
+    <div className="relative">
+      <button type="button" onClick={() => setOpen((v) => !v)} className="input w-full text-left flex items-center justify-between text-xs">
+        <span className={value.length === 0 ? 'text-gray-400' : 'text-gray-900'}>
+          {value.length === 0 ? placeholder : `${value.length} selected`}
+        </span>
+        <span className="text-gray-400">▾</span>
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-md shadow-lg z-10 max-h-72 overflow-auto">
+          {groups.map((g) => (
+            <div key={g.cat}>
+              <div className="px-3 py-1 bg-gray-50 text-[10px] font-semibold uppercase tracking-wide text-gray-500 sticky top-0">
+                {g.title}
+              </div>
+              {g.options.map((opt) => (
+                <label key={opt} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 text-xs cursor-pointer">
+                  <input type="checkbox" checked={value.includes(opt)} onChange={() => toggle(opt)} />
+                  {opt}
+                </label>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
