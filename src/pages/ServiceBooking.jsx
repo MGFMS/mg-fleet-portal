@@ -2,6 +2,7 @@
 // createAppointment.
 
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { BRANCHES, FLEET_COMPANIES } from '../lib/dummyData'
 import { watchVehicles } from '../lib/vehicles'
@@ -208,6 +209,7 @@ function BookingCard({ appt, onClick }) {
 }
 
 function BookingForm({ editId, branch, appointments, vehicles, onClose }) {
+  const navigate = useNavigate()
   const existing = editId ? appointments.find((a) => a.id === editId) : null
   const [walkin, setWalkin] = useState(false)
   const [tentative, setTentative] = useState(false)
@@ -289,13 +291,27 @@ function BookingForm({ editId, branch, appointments, vehicles, onClose }) {
       {error && <div className="bg-red-50 border border-red-200 text-red-800 rounded px-3 py-2 text-xs">Save failed: {error}</div>}
 
       {existing && (
-        <div className="bg-gray-50 border rounded-md p-2 flex items-center gap-2">
+        <div className="bg-gray-50 border rounded-md p-2 flex items-center gap-2 flex-wrap">
           <span className="text-[11px] font-semibold text-gray-500 mr-1">STATUS: {existing.status}</span>
           {existing.status === 'BOOKED' || existing.status === 'CONFIRMED' || existing.status === 'TENTATIVE' ? (
             <button type="button" disabled={statusActing}
               onClick={() => onStatusAction('ARRIVED', 'Vehicle checked in')}
               className="text-xs bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-2 py-1 rounded">
               Mark Arrived
+            </button>
+          ) : null}
+          {existing.status === 'ARRIVED' || existing.status === 'ONGOING' ? (
+            <button type="button"
+              onClick={() => navigate(`/appointments/${editId}/diagnose`)}
+              className="text-xs bg-red-700 hover:bg-red-800 text-white px-2 py-1 rounded">
+              Diagnose →
+            </button>
+          ) : null}
+          {['ARRIVED', 'ONGOING', 'DIAGNOSED'].includes(existing.status) ? (
+            <button type="button"
+              onClick={() => navigate(`/appointments/${editId}/pms`)}
+              className="text-xs bg-green-700 hover:bg-green-800 text-white px-2 py-1 rounded">
+              Record PMS →
             </button>
           ) : null}
           {existing.status !== 'CANCELLED' && existing.status !== 'COMPLETED' ? (
