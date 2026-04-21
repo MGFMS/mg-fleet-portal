@@ -42,6 +42,30 @@ export const PMS_ITEMS = [
 
 export const PMS_MAP = Object.fromEntries(PMS_ITEMS.map((p) => [p.code, p]))
 
+// Inspection code → PMS code map. Port of mg-fms-app/src/App.jsx:98. When an
+// inspection item is marked `replaced` in the diagnostic, the matching PMS
+// item auto-checks with the brand/qty/photos carried over. Keep in sync with
+// mg-fms: both apps rely on this for the cross-flow prefill.
+export const INSP_TO_PMS = {
+  ENG_OIL:        'PMS_OIL',
+  ENG_OIL_FILTER: 'PMS_OIL_FILTER',
+  ENG_AIR:        'PMS_AIR',
+  ENG_CABIN:      'PMS_CABIN',
+  ENG_SPARK:      'PMS_SPARK',
+  ENG_FUEL:       'PMS_FUEL',
+  ENG_BELT:       'PMS_DRIVEBELT',
+  ENG_COOL:       'PMS_COOL',
+  ENG_TRANS:      'PMS_TRANS',
+  BRK_PAD_F:      'PMS_BRAKE_PAD_F',
+  BRK_PAD_R:      'PMS_BRAKE_PAD_R',
+  BRK_DRUM:       'PMS_BRAKE_DRUM',
+  BRK_SHOE:       'PMS_BRAKE_SHOE',
+  BRK_FLUID:      'PMS_BRAKE_FLUID',
+  BRK_HAND:       'PMS_BRAKE_SHOE',
+  ELC_BATT:       'PMS_BATT',
+  ELC_BATT_V:     'PMS_BATT',
+}
+
 // ── Defect codes dictionary ──────────────────────────────────────────────
 export const DEFECT_CODES = {
   LOW_THICKNESS: 'Low thickness',

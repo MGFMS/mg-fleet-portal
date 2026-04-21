@@ -18,11 +18,12 @@
 //   - sessionStorage draft persistence
 //   - pmsUrgency overdue/due-soon coloring
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { fetchContextDoc } from '../lib/notifications'
-import { PMS_ITEMS } from '../lib/mgfms-catalog'
+import { INSP_TO_PMS, PMS_ITEMS } from '../lib/mgfms-catalog'
+import { getAssessmentById } from '../lib/assessments'
 import {
   buildPmsUpdates, calcNextDue, loadPmsRecord, resolveCanonicalPlate,
   savePmsRecord,
@@ -59,9 +60,12 @@ export default function PmsRecord() {
   const [technician, setTechnician] = useState('')
   const [checked, setChecked] = useState({})
   const [details, setDetails] = useState({})
+  const [autoLinked, setAutoLinked] = useState({}) // { [pmsCode]: inspCode } — prefill provenance
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
+
+  const autoLinkedRef = useRef(false)
 
   // Load appointment → resolve canonical plate → load existing pms_records.
   useEffect(() => {
@@ -104,6 +108,39 @@ export default function PmsRecord() {
     resolveCanonicalPlate(plate).then((c) => { if (!cancelled) setCanonicalPlate(c) })
     return () => { cancelled = true }
   }, [plate, loading])
+
+  // Auto-link (mg-fms INSP_TO_PMS flow). Fires once after appointment loads:
+  // if the appointment is tied to an assessment whose inspection items are
+  // marked `replaced`, check the matching PMS items and prefill brand/qty
+  // with the inspection's partReplaced/partQty. Skips any PMS codes the user
+  // has already touched so we don't clobber manual edits on navigation.
+  useEffect(() => {
+    if (loading || autoLinkedRef.current) return
+    if (!appointment?.assessmentId) return
+    autoLinkedRef.current = true
+    let cancelled = false
+    getAssessmentById(appointment.assessmentId).then((asmt) => {
+      if (cancelled || !asmt?.itemResults) return
+      const nextChecked = {}
+      const nextDetails = {}
+      const prov = {}
+      for (const [inspCode, pmsCode] of Object.entries(INSP_TO_PMS)) {
+        const r = asmt.itemResults[inspCode]
+        if (r?.resultCode !== 'replaced') continue
+        nextChecked[pmsCode] = true
+        nextDetails[pmsCode] = {
+          brand: r.partReplaced || '',
+          qty: r.partQty || 1,
+        }
+        prov[pmsCode] = inspCode
+      }
+      if (Object.keys(nextChecked).length === 0) return
+      setChecked((prev) => ({ ...nextChecked, ...prev })) // prev wins — don't clobber user
+      setDetails((prev) => ({ ...nextDetails, ...prev }))
+      setAutoLinked(prov)
+    })
+    return () => { cancelled = true }
+  }, [loading, appointment])
 
   const toggle = (code) => {
     setChecked((prev) => {
@@ -219,6 +256,7 @@ export default function PmsRecord() {
             checked={!!checked[item.code]}
             detail={details[item.code] || { brand: '', qty: 1 }}
             existing={existing[item.code]}
+            autoLinkedFrom={autoLinked[item.code] || null}
             odometer={odometer}
             date={date}
             onToggle={() => toggle(item.code)}
@@ -262,7 +300,7 @@ function Field({ label, children }) {
   )
 }
 
-function PmsRow({ item, checked, detail, existing, odometer, date, onToggle, onBrand, onQty }) {
+function PmsRow({ item, checked, detail, existing, autoLinkedFrom, odometer, date, onToggle, onBrand, onQty }) {
   const { nextOdo, nextDate } = calcNextDue(odometer, date, item.kmInterval, item.monthInterval)
   return (
     <div className={`px-4 py-3 ${checked ? 'bg-green-50' : ''}`}>
@@ -271,9 +309,17 @@ function PmsRow({ item, checked, detail, existing, odometer, date, onToggle, onB
           {checked && <span className="text-white text-[11px] font-black">✓</span>}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm">{item.icon}</span>
             <span className="font-semibold text-sm text-gray-800">{item.label}</span>
+            {autoLinkedFrom && checked && (
+              <span
+                className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700"
+                title={`Auto-linked from inspection item ${autoLinkedFrom}`}
+              >
+                from diagnostic
+              </span>
+            )}
           </div>
           {existing && !checked && (
             <div className="text-[11px] text-gray-500 mt-0.5">

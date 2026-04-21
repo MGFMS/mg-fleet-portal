@@ -12,10 +12,20 @@
 //     FMS_KNOWN_ISSUES §1 flagged that NaN bypassed the original; this port
 //     coerces NaN to null too.
 
-import { addDoc, collection, doc, serverTimestamp, updateDoc } from 'firebase/firestore'
+import { addDoc, collection, doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore'
 import { auth, db } from './firebase'
 import { ALL_ITEMS } from './mgfms-catalog'
 import { emitNotification } from './notifications'
+
+// Single-doc read by id. Returns the assessment doc + id, or null if missing.
+// Used by the PMS form to auto-link "replaced" inspection items into the
+// matching PMS items (mg-fms INSP_TO_PMS flow).
+export async function getAssessmentById(id) {
+  if (!db || !id) return null
+  const snap = await getDoc(doc(db, 'assessments', id))
+  if (!snap.exists()) return null
+  return { _docId: snap.id, ...snap.data() }
+}
 
 // ── sanitizer ────────────────────────────────────────────────────────────
 // Deep-walks any value and replaces `undefined` and `NaN` with `null`, which
