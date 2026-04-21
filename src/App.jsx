@@ -1,0 +1,104 @@
+import { Routes, Route, Navigate } from 'react-router-dom'
+import { AuthProvider } from './context/AuthContext'
+import ProtectedRoute from './components/ProtectedRoute'
+import PortalLayout from './layouts/PortalLayout'
+
+import Login from './pages/Login'
+import Home from './pages/Home'
+import Portal from './pages/Portal'
+import MyFleet from './pages/MyFleet'
+import ServiceLog from './pages/ServiceLog'
+import Placeholder from './pages/Placeholder'
+
+import Notifications from './pages/Notifications'
+import MyMechanics from './pages/MyMechanics'
+import Customers from './pages/Customers'
+import Vehicles from './pages/Vehicles'
+import VehicleDetails from './pages/VehicleDetails'
+import Mechanics from './pages/Mechanics'
+import Services from './pages/Services'
+import Reports from './pages/Reports'
+
+import ServiceBooking from './pages/ServiceBooking'
+import VehicleServiceUpdate from './pages/VehicleServiceUpdate'
+import AssessmentView from './pages/AssessmentView'
+
+import Quotations from './pages/Quotations'
+import ServiceReceipts from './pages/ServiceReceipts'
+import ServiceReceiptCreate from './pages/ServiceReceiptCreate'
+import ServiceReceiptDetails from './pages/ServiceReceiptDetails'
+
+import FleetCompanies from './pages/admin/FleetCompanies'
+import Users from './pages/admin/Users'
+import AuthComplete from './pages/AuthComplete'
+
+const INTERNAL = ['internal']
+const CUSTOMER = ['customer']
+const BOTH = ['internal', 'customer']
+
+const ph = (title, description) => <Placeholder title={title} description={description} />
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/auth/complete" element={<AuthComplete />} />
+
+        <Route
+          element={
+            <ProtectedRoute>
+              <PortalLayout />
+            </ProtectedRoute>
+          }
+        >
+          {/* Internal staff */}
+          <Route path="/home"                  element={<ProtectedRoute allowedCategories={INTERNAL}><Home /></ProtectedRoute>} />
+          <Route path="/home/notifications"    element={<ProtectedRoute allowedCategories={INTERNAL}><Notifications /></ProtectedRoute>} />
+          <Route path="/home/my-mechanics"     element={<ProtectedRoute allowedCategories={INTERNAL}><MyMechanics /></ProtectedRoute>} />
+
+          {/* Appointments / Service Booking — both categories (fleet managers can book too) */}
+          <Route path="/appointments"                element={<ProtectedRoute allowedCategories={BOTH}><ServiceBooking /></ProtectedRoute>} />
+          <Route path="/appointments/:id/update"     element={<ProtectedRoute allowedCategories={INTERNAL}><VehicleServiceUpdate /></ProtectedRoute>} />
+          <Route path="/appointments/:id/diagnose"   element={<ProtectedRoute allowedCategories={INTERNAL}>{ph('Diagnostic', 'Create/edit a diagnostic for this appointment.')}</ProtectedRoute>} />
+          <Route path="/appointments/:id/assign"     element={<ProtectedRoute allowedCategories={INTERNAL}>{ph('Assign Mechanic', 'Assign or reassign the mechanic for this appointment.')}</ProtectedRoute>} />
+
+          {/* Quotations */}
+          <Route path="/quotations"            element={<ProtectedRoute allowedCategories={INTERNAL}><Quotations /></ProtectedRoute>} />
+          <Route path="/quotations/unbilled"   element={<ProtectedRoute allowedCategories={INTERNAL}><Quotations unbilledOnly /></ProtectedRoute>} />
+          <Route path="/quotations/create"     element={<ProtectedRoute allowedCategories={INTERNAL}><ServiceReceiptCreate /></ProtectedRoute>} />
+
+          {/* Service Receipts */}
+          <Route path="/service-receipts"        element={<ProtectedRoute allowedCategories={INTERNAL}><ServiceReceipts /></ProtectedRoute>} />
+          <Route path="/service-receipts/create" element={<ProtectedRoute allowedCategories={INTERNAL}><ServiceReceiptCreate /></ProtectedRoute>} />
+          <Route path="/service-receipts/:code"  element={<ProtectedRoute allowedCategories={BOTH}><ServiceReceiptDetails /></ProtectedRoute>} />
+
+          <Route path="/reports"               element={<ProtectedRoute allowedCategories={INTERNAL}><Reports /></ProtectedRoute>} />
+
+          {/* Data management */}
+          <Route path="/customers"             element={<ProtectedRoute allowedCategories={INTERNAL}><Customers /></ProtectedRoute>} />
+          <Route path="/vehicles"              element={<ProtectedRoute allowedCategories={INTERNAL}><Vehicles /></ProtectedRoute>} />
+          <Route path="/vehicles/search"       element={<ProtectedRoute allowedCategories={BOTH}>{ph('Vehicle Search', 'Jump straight to a plate from the topbar.')}</ProtectedRoute>} />
+          <Route path="/vehicles/:plateNo"     element={<ProtectedRoute allowedCategories={BOTH}><VehicleDetails /></ProtectedRoute>} />
+          <Route path="/assessments/:rwa"      element={<ProtectedRoute allowedCategories={BOTH}><AssessmentView /></ProtectedRoute>} />
+          <Route path="/mechanics"             element={<ProtectedRoute allowedCategories={INTERNAL}><Mechanics /></ProtectedRoute>} />
+          <Route path="/services"              element={<ProtectedRoute allowedCategories={INTERNAL}><Services /></ProtectedRoute>} />
+
+          {/* Fleet customer */}
+          <Route path="/portal"                element={<ProtectedRoute allowedCategories={CUSTOMER}><Portal /></ProtectedRoute>} />
+          <Route path="/portal/notifications"  element={<ProtectedRoute allowedCategories={CUSTOMER}><Notifications /></ProtectedRoute>} />
+          <Route path="/portal/my-fleet"       element={<ProtectedRoute allowedCategories={CUSTOMER}><MyFleet /></ProtectedRoute>} />
+          <Route path="/portal/service-log"    element={<ProtectedRoute allowedCategories={CUSTOMER}><ServiceLog /></ProtectedRoute>} />
+          <Route path="/portal/quotations"     element={<ProtectedRoute allowedCategories={CUSTOMER}><Quotations customerView /></ProtectedRoute>} />
+
+          {/* Admin (gated by is_admin flag, not by role category) */}
+          <Route path="/admin/fleet-companies" element={<ProtectedRoute requireAdmin><FleetCompanies /></ProtectedRoute>} />
+          <Route path="/admin/users"           element={<ProtectedRoute requireAdmin><Users /></ProtectedRoute>} />
+        </Route>
+
+        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </AuthProvider>
+  )
+}

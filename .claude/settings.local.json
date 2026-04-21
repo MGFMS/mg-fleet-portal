@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npx vite *)",
+      "Bash(netstat -ano)",
+      "Bash(firebase deploy *)",
+      "Bash(firebase hosting:sites:create mg-fleet-portal --project mg-fms)",
+      "Bash(git --version)",
+      "Bash(gh --version)",
+      "Bash(gh auth *)",
+      "Bash(git -C /c/Users/VJ/mg-fleet-portal config user.name)",
+      "Bash(git -C /c/Users/VJ/mg-fleet-portal config user.email)",
+      "Bash(git config *)",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(rm -rf /c/Users/VJ/mg-fleet-portal/mg-fms-app/.git)",
+      "Bash(git reset *)"
+    ]
+  }
+}

@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MG-FMS App Walkthrough &amp; User Guide</title>
+<style>
+  @page { size: A4; margin: 20mm 18mm 20mm 18mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: #1a1a1a; line-height: 1.6; font-size: 11pt; }
+
+  /* Cover page */
+  .cover { page-break-after: always; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 90vh; text-align: center; }
+  .cover-logo { font-size: 64pt; margin-bottom: 16px; }
+  .cover h1 { font-size: 28pt; color: #b91c1c; margin-bottom: 8px; font-weight: 900; }
+  .cover h2 { font-size: 16pt; color: #444; font-weight: 400; margin-bottom: 32px; }
+  .cover-meta { font-size: 10pt; color: #888; }
+  .cover-meta p { margin: 4px 0; }
+  .cover-line { width: 120px; height: 4px; background: #b91c1c; border-radius: 2px; margin: 24px auto; }
+
+  /* TOC */
+  .toc { page-break-after: always; }
+  .toc h2 { font-size: 18pt; color: #b91c1c; margin-bottom: 16px; border-bottom: 2px solid #b91c1c; padding-bottom: 8px; }
+  .toc ol { padding-left: 24px; }
+  .toc li { margin: 6px 0; font-size: 11pt; }
+  .toc a { color: #1a1a1a; text-decoration: none; }
+  .toc a:hover { color: #b91c1c; }
+
+  /* Section headings */
+  h2 { font-size: 16pt; color: #b91c1c; margin: 32px 0 12px 0; padding-bottom: 6px; border-bottom: 2px solid #fecaca; page-break-after: avoid; }
+  h3 { font-size: 12pt; color: #333; margin: 20px 0 8px 0; page-break-after: avoid; }
+  h4 { font-size: 11pt; color: #555; margin: 14px 0 6px 0; }
+
+  p { margin: 8px 0; }
+  strong { color: #b91c1c; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 16px 0; font-size: 9.5pt; page-break-inside: avoid; }
+  th { background: #b91c1c; color: white; padding: 8px 10px; text-align: left; font-weight: 600; font-size: 9pt; text-transform: uppercase; letter-spacing: 0.3px; }
+  td { padding: 7px 10px; border-bottom: 1px solid #e5e5e5; vertical-align: top; }
+  tr:nth-child(even) { background: #fafafa; }
+  tr:hover { background: #fff5f5; }
+  td:first-child { font-weight: 500; }
+
+  /* Screenshot placeholder */
+  .screenshot { background: #f8f8f8; border: 2px dashed #ccc; border-radius: 12px; padding: 40px 24px; margin: 16px 0; text-align: center; page-break-inside: avoid; }
+  .screenshot .icon { font-size: 32pt; margin-bottom: 8px; display: block; }
+  .screenshot .label { font-size: 10pt; color: #999; font-style: italic; }
+  .screenshot .caption { font-size: 9pt; color: #666; margin-top: 8px; }
+
+  /* Info boxes */
+  .info-box { background: #eff6ff; border-left: 4px solid #3b82f6; padding: 12px 16px; margin: 12px 0; border-radius: 0 8px 8px 0; font-size: 10pt; page-break-inside: avoid; }
+  .warn-box { background: #fffbeb; border-left: 4px solid #f59e0b; padding: 12px 16px; margin: 12px 0; border-radius: 0 8px 8px 0; font-size: 10pt; page-break-inside: avoid; }
+  .danger-box { background: #fef2f2; border-left: 4px solid #dc2626; padding: 12px 16px; margin: 12px 0; border-radius: 0 8px 8px 0; font-size: 10pt; page-break-inside: avoid; }
+
+  /* Code block */
+  .code-block { background: #1e1e1e; color: #d4d4d4; padding: 16px; border-radius: 8px; font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 9pt; white-space: pre-wrap; margin: 12px 0; overflow-x: auto; }
+
+  /* Status badges */
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 8.5pt; font-weight: 700; letter-spacing: 0.3px; }
+  .badge-green { background: #dcfce7; color: #166534; }
+  .badge-amber { background: #fef3c7; color: #92400e; }
+  .badge-red { background: #fee2e2; color: #991b1b; }
+  .badge-blue { background: #dbeafe; color: #1e40af; }
+  .badge-gray { background: #f3f4f6; color: #4b5563; }
+
+  /* Flow diagram */
+  .flow { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 16px 0; flex-wrap: wrap; font-size: 9.5pt; }
+  .flow-step { background: #b91c1c; color: white; padding: 8px 16px; border-radius: 8px; font-weight: 600; text-align: center; min-width: 100px; }
+  .flow-arrow { color: #b91c1c; font-size: 16pt; font-weight: bold; }
+
+  /* Page breaks */
+  .page-break { page-break-before: always; }
+
+  /* Footer */
+  .footer { text-align: center; color: #999; font-size: 8pt; margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e5e5; }
+
+  /* Print adjustments */
+  @media print {
+    body { font-size: 10pt; }
+    .screenshot { background: #f8f8f8 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    th { background: #b91c1c !important; color: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .badge, .flow-step, tr:nth-child(even), .info-box, .warn-box, .danger-box { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ COVER PAGE ============ -->
+<div class="cover">
+  <div class="cover-logo">&#9881;&#65039;</div>
+  <h1>MG Fleet Management System</h1>
+  <h2>App Walkthrough &amp; User Guide</h2>
+  <div class="cover-line"></div>
+  <div class="cover-meta">
+    <p><strong>Version:</strong> 1.1.0</p>
+    <p><strong>Date:</strong> April 2026</p>
+    <p><strong>Prepared for:</strong> All Branch Teams</p>
+    <p>Cavite &bull; Quezon City &bull; Pampanga &bull; Davao &bull; Palawan</p>
+  </div>
+</div>
+
+<!-- ============ TABLE OF CONTENTS ============ -->
+<div class="toc">
+  <h2>Table of Contents</h2>
+  <ol>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#login">Getting Started &mdash; Login</a></li>
+    <li><a href="#dashboard">Dashboard</a></li>
+    <li><a href="#new-assessment">New Assessment</a></li>
+    <li><a href="#inspection">Inspection Screen</a></li>
+    <li><a href="#result">Assessment Result</a></li>
+    <li><a href="#pms">Preventive Maintenance (PMS)</a></li>
+    <li><a href="#vehicle-profile">Vehicle Profile</a></li>
+    <li><a href="#history">History</a></li>
+    <li><a href="#analytics">Analytics</a></li>
+    <li><a href="#settings">Settings</a></li>
+    <li><a href="#user-management">User Management</a></li>
+    <li><a href="#key-features">Key Features</a></li>
+    <li><a href="#roles">Roles &amp; Permissions</a></li>
+    <li><a href="#inspection-ref">Inspection Items Reference</a></li>
+    <li><a href="#pms-ref">PMS Items Reference</a></li>
+    <li><a href="#labor-ref">Labor Types Reference</a></li>
+    <li><a href="#colors">Status &amp; Color Guide</a></li>
+    <li><a href="#support">Troubleshooting &amp; Support</a></li>
+  </ol>
+</div>
+
+<!-- ============ 1. OVERVIEW ============ -->
+<h2 id="overview">1. Overview</h2>
+<p>MG-FMS is a <strong>mobile-first web application</strong> for managing your vehicle fleet. It covers the full lifecycle of fleet maintenance:</p>
+<table>
+  <tr><th>Capability</th><th>Description</th></tr>
+  <tr><td>Vehicle Inspection</td><td>Structured 35+ item checklist across 7 categories</td></tr>
+  <tr><td>Dispatch Clearance</td><td>Automatic pass/fail classification determines if a vehicle can be dispatched</td></tr>
+  <tr><td>Preventive Maintenance</td><td>Track 31 service items with km and date-based intervals</td></tr>
+  <tr><td>Fleet Analytics</td><td>Charts and reports for supervisors and fleet managers</td></tr>
+  <tr><td>User Management</td><td>Role-based access for technicians, supervisors, and fleet managers</td></tr>
+</table>
+
+<div class="info-box">
+  <strong>Offline-First:</strong> The app works without internet. Data is cached locally and syncs automatically when connectivity returns.
+</div>
+
+<h3>App Workflow</h3>
+<div class="flow">
+  <div class="flow-step">Login</div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step">Dashboard</div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step">New Assessment</div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step">Inspect (35+ items)</div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step">Result &amp; Classification</div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step">PMS Tracking</div>
+</div>
+
+<div class="screenshot">
+  <span class="icon">&#128241;</span>
+  <div class="label">[ Screenshot: App home screen on mobile ]</div>
+  <div class="caption">MG-FMS Dashboard on mobile &mdash; showing vehicle cards with status indicators</div>
+</div>
+
+<!-- ============ 2. LOGIN ============ -->
+<h2 id="login" class="page-break">2. Getting Started &mdash; Login</h2>
+
+<div class="screenshot">
+  <span class="icon">&#128274;</span>
+  <div class="label">[ Screenshot: Login screen ]</div>
+  <div class="caption">Login screen with email and password fields</div>
+</div>
+
+<h3>Steps</h3>
+<ol>
+  <li>Open the app URL in your mobile browser (Chrome recommended)</li>
+  <li>Enter your <strong>email</strong> and <strong>password</strong></li>
+  <li>Tap <strong>Login</strong></li>
+</ol>
+
+<div class="info-box">
+  Your account is created by a Fleet Manager. The first user to ever log in is automatically promoted to <strong>Fleet Manager</strong>.
+</div>
+
+<p>After login:</p>
+<ul>
+  <li>Your role determines what screens you can access</li>
+  <li>Your technician name and branch are loaded from your profile</li>
+  <li>Assessment and PMS data begins syncing from the server</li>
+</ul>
+
+<!-- ============ 3. DASHBOARD ============ -->
+<h2 id="dashboard">3. Dashboard</h2>
+<p>The Dashboard is your home screen. It shows all vehicles in the fleet with their latest assessment status.</p>
+
+<div class="screenshot">
+  <span class="icon">&#128202;</span>
+  <div class="label">[ Screenshot: Dashboard with vehicle cards ]</div>
+  <div class="caption">Dashboard showing vehicle cards &mdash; green (Active), amber (Conditional), red (Deferred)</div>
+</div>
+
+<h3>What You See</h3>
+<table>
+  <tr><th>Element</th><th>Description</th></tr>
+  <tr><td>Vehicle Card</td><td>Plate number, client, branch, last assessment date</td></tr>
+  <tr><td>Status Badge</td><td>Color-coded: <span class="badge badge-green">Active</span> <span class="badge badge-amber">Conditional</span> <span class="badge badge-red">Deferred</span></td></tr>
+  <tr><td>Health Score</td><td>0&ndash;100 score based on weighted inspection results</td></tr>
+  <tr><td>Dispatch Icon</td><td>&#10004; if cleared, &#9940; if blocked</td></tr>
+</table>
+
+<h3>Filtering &amp; Search</h3>
+<ul>
+  <li><strong>Status Filter</strong> &mdash; Show only Active, Conditional, or Deferred vehicles</li>
+  <li><strong>Branch Filter</strong> &mdash; Filter by branch (Cavite, QC, Pampanga, Davao, Palawan)</li>
+  <li><strong>Plate Search</strong> &mdash; Type a plate number to find a specific vehicle</li>
+</ul>
+
+<!-- ============ 4. NEW ASSESSMENT ============ -->
+<h2 id="new-assessment" class="page-break">4. New Assessment</h2>
+<p>Start a new vehicle inspection by filling in the assessment header.</p>
+
+<div class="screenshot">
+  <span class="icon">&#128221;</span>
+  <div class="label">[ Screenshot: New Assessment form ]</div>
+  <div class="caption">New Assessment header form &mdash; plate, client, branch, odometer, type</div>
+</div>
+
+<h3>Header Fields</h3>
+<table>
+  <tr><th>Field</th><th>Description</th></tr>
+  <tr><td>Plate Number</td><td>Vehicle plate (e.g., UFF 4915). Auto-fills vehicle info if seen before</td></tr>
+  <tr><td>Make / Model / Year</td><td>Auto-populated from vehicle registry, or enter manually for new vehicles</td></tr>
+  <tr><td>Client</td><td>Select from: National Museum, China Banking, Purefoods &mdash; San Miguel, or Walk-in</td></tr>
+  <tr><td>Branch</td><td>Your branch location</td></tr>
+  <tr><td>Technician</td><td>Your name (from your profile)</td></tr>
+  <tr><td>Assessment Type</td><td>Initial, Periodic, Re-Assessment, or Pre-Dispatch</td></tr>
+  <tr><td>Odometer</td><td>Current km reading</td></tr>
+  <tr><td>Date</td><td>Defaults to today</td></tr>
+</table>
+
+<h3>Assessment Types Explained</h3>
+<table>
+  <tr><th>Type</th><th>What It Does</th><th>Items Shown</th></tr>
+  <tr><td><strong>Initial</strong></td><td>For vehicles entering the fleet</td><td>Full 35+ item checklist</td></tr>
+  <tr><td><strong>Periodic</strong></td><td>Routine scheduled inspections</td><td>Full 35+ item checklist</td></tr>
+  <tr><td><strong>Re-Assessment</strong></td><td>Follow-up on previous issues</td><td>Only items that failed or were flagged as &ldquo;Monitor&rdquo;</td></tr>
+  <tr><td><strong>Pre-Dispatch</strong></td><td>Quick check before vehicle goes out</td><td>Only critical, safety, and compliance items</td></tr>
+</table>
+
+<!-- ============ 5. INSPECTION ============ -->
+<h2 id="inspection" class="page-break">5. Inspection Screen</h2>
+<p>This is where you perform the actual vehicle inspection, category by category.</p>
+
+<div class="screenshot">
+  <span class="icon">&#128269;</span>
+  <div class="label">[ Screenshot: Inspection screen &mdash; category list ]</div>
+  <div class="caption">Inspection screen showing the 7 categories as expandable accordion sections</div>
+</div>
+
+<h3>The 7 Inspection Categories</h3>
+<table>
+  <tr><th>#</th><th>Code</th><th>Category</th><th>Items</th></tr>
+  <tr><td>1</td><td>ENG</td><td>&#9881;&#65039; Engine &amp; Drivetrain</td><td>10 items</td></tr>
+  <tr><td>2</td><td>BRK</td><td>&#128721; Braking System</td><td>8 items</td></tr>
+  <tr><td>3</td><td>SUS</td><td>&#128295; Suspension &amp; Steering</td><td>4 items</td></tr>
+  <tr><td>4</td><td>ELC</td><td>&#9889; Electrical System</td><td>6 items</td></tr>
+  <tr><td>5</td><td>TIR</td><td>&#128308; Tires &amp; Wheels</td><td>6 items</td></tr>
+  <tr><td>6</td><td>BOD</td><td>&#128663; Body &amp; Chassis</td><td>5 items</td></tr>
+  <tr><td>7</td><td>LTO</td><td>&#128203; LTO Compliance</td><td>5 items</td></tr>
+</table>
+
+<h3>How to Inspect Each Item</h3>
+<p>Tap a category to expand it. For each item:</p>
+
+<h4>Step 1: Select a Result Code</h4>
+<table>
+  <tr><th>Code</th><th>Meaning</th><th>When to Use</th></tr>
+  <tr><td><span class="badge badge-green">Pass</span></td><td>Item is in acceptable condition</td><td>No issues found</td></tr>
+  <tr><td><span class="badge badge-amber">Monitor</span></td><td>Minor issue, not critical</td><td>Wear or degradation that needs watching</td></tr>
+  <tr><td><span class="badge badge-red">Fail Critical</span></td><td>Serious defect found</td><td>Immediate attention required</td></tr>
+  <tr><td><span class="badge badge-blue">Replaced</span></td><td>Part was replaced on-site</td><td>You fixed it during the inspection</td></tr>
+  <tr><td><span class="badge badge-gray">N/A</span></td><td>Not applicable</td><td>Item doesn&rsquo;t apply (e.g., ABS on older vehicle)</td></tr>
+</table>
+
+<h4>Step 2: For Measurable Items</h4>
+<p>Items like brake pads, tread depth, and battery voltage require a numeric measurement:</p>
+<ul>
+  <li>Enter the measured value in the input field</li>
+  <li>The app shows the minimum threshold (e.g., &ldquo;Min 3.0mm&rdquo; for brake pads)</li>
+  <li>If below threshold, the item auto-suggests <span class="badge badge-red">Fail Critical</span></li>
+</ul>
+
+<h4>Step 3: For Monitor / Fail Critical Results</h4>
+<ul>
+  <li>Select a <strong>defect code</strong> from the dropdown (e.g., Low Thickness, Worn, Leaking)</li>
+  <li>Add optional <strong>notes</strong> for additional details</li>
+</ul>
+
+<h4>Step 4: For Replaced Results</h4>
+<ul>
+  <li>Enter the <strong>part name</strong> that was replaced</li>
+  <li>Enter the <strong>quantity</strong></li>
+  <li>Optionally enter before/after measurements</li>
+</ul>
+
+<div class="info-box">
+  <strong>Auto-link:</strong> Marking an item as &ldquo;Replaced&rdquo; automatically updates the corresponding PMS record for this vehicle.
+</div>
+
+<h4>Step 5: Photo Documentation</h4>
+<ul>
+  <li>Tap the camera icon to capture a photo of the defect</li>
+  <li>Photos are automatically compressed (max 600px, JPEG quality 0.5)</li>
+  <li>A KB size indicator shows in the corner of each photo</li>
+</ul>
+
+<div class="screenshot">
+  <span class="icon">&#128247;</span>
+  <div class="label">[ Screenshot: Inspection item with defect code and photo ]</div>
+  <div class="caption">A brake pad item marked as Fail Critical with measured value, defect code, and attached photo</div>
+</div>
+
+<!-- ============ 6. RESULT ============ -->
+<h2 id="result" class="page-break">6. Assessment Result</h2>
+<p>After completing all items and submitting, the <strong>classification engine</strong> automatically evaluates the results.</p>
+
+<div class="screenshot">
+  <span class="icon">&#9989;</span>
+  <div class="label">[ Screenshot: Assessment result &mdash; ACTIVE status ]</div>
+  <div class="caption">Assessment result showing ACTIVE status with green header and health score of 100</div>
+</div>
+
+<div class="screenshot">
+  <span class="icon">&#9940;</span>
+  <div class="label">[ Screenshot: Assessment result &mdash; DEFERRED status ]</div>
+  <div class="caption">Assessment result showing DEFERRED status with red header, dispatch blocked, and critical items listed</div>
+</div>
+
+<h3>Classification Engine</h3>
+<p>The engine runs automatically after you submit and determines the vehicle&rsquo;s status:</p>
+<table>
+  <tr><th>Outcome</th><th>Condition</th><th>Dispatch?</th><th>Reassessment</th></tr>
+  <tr><td><span class="badge badge-green">ACTIVE</span></td><td>All items pass</td><td>&#10004; Cleared</td><td>None required</td></tr>
+  <tr><td><span class="badge badge-amber">CONDITIONAL</span></td><td>Has &ldquo;Monitor&rdquo; items, no critical failures</td><td>&#10004; Cleared</td><td>Within 30 days</td></tr>
+  <tr><td><span class="badge badge-red">DEFERRED</span></td><td>Has &ldquo;Fail Critical&rdquo; items</td><td>&#9940; <strong>BLOCKED</strong></td><td>Within 3 days</td></tr>
+</table>
+
+<h3>Health Score (0&ndash;100)</h3>
+<p>A weighted score reflecting overall vehicle condition:</p>
+<table>
+  <tr><th>Item Severity</th><th>Fail Critical</th><th>Monitor</th></tr>
+  <tr><td>Hold Unit items (brake pads, tires, structural, seatbelts)</td><td>&minus;20 points</td><td>&minus;5 points</td></tr>
+  <tr><td>Critical items (lights, tie rods, fuel system)</td><td>&minus;15 points</td><td>&minus;5 points</td></tr>
+  <tr><td>Compliance items (LTO documents)</td><td>&minus;10 points</td><td>&minus;3 points</td></tr>
+  <tr><td>Other items</td><td>&minus;8 points</td><td>&minus;3 points</td></tr>
+</table>
+
+<h3>Actions on the Result Screen</h3>
+<table>
+  <tr><th>Action</th><th>Description</th></tr>
+  <tr><td><strong>Share</strong></td><td>Copies a formatted text summary to clipboard &mdash; paste into Viber, SMS, or email</td></tr>
+  <tr><td><strong>Quick Fix</strong></td><td>Resolve a failed item (mark as replaced) without redoing the whole inspection</td></tr>
+  <tr><td><strong>Re-Assess</strong></td><td>Start a Re-Assessment showing only previously failed/monitored items</td></tr>
+  <tr><td><strong>Supervisor Override</strong></td><td>Supervisors/Fleet Managers can override dispatch decisions</td></tr>
+  <tr><td><strong>PDF Report</strong></td><td>Generate a printable PDF report</td></tr>
+</table>
+
+<h3>RWA Number</h3>
+<p>Each assessment gets a unique <strong>RWA number</strong> in the format <code>RWA-YYYY-XXXXXX</code> (e.g., RWA-2026-000145). Use this for tracking and cross-referencing.</p>
+
+<h3>Share Text Example</h3>
+<div class="code-block">&#128203; MG FLEET ASSESSMENT RESULT
+&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;
+RWA No.: RWA-2026-000145
+Plate:   ZOQ 3492
+Client:  National Museum of the Philippines
+Branch:  MGQUEZON CITY
+Date:    2026-03-23
+Tech:    Marco Reyes
+&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;
+STATUS: ACTIVE
+CLEARED FOR DISPATCH &#10003;
+&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;&#9473;
+MG Fleet Management System (FMS)
+fleet.mastergarage.ph</div>
+
+<!-- ============ 7. PMS ============ -->
+<h2 id="pms" class="page-break">7. Preventive Maintenance (PMS)</h2>
+<p>Track scheduled maintenance for each vehicle across <strong>31 service items</strong>.</p>
+
+<div class="screenshot">
+  <span class="icon">&#128736;&#65039;</span>
+  <div class="label">[ Screenshot: PMS tracking screen ]</div>
+  <div class="caption">PMS tracking screen showing service items with urgency color indicators</div>
+</div>
+
+<h3>PMS Categories</h3>
+
+<h4>Scheduled Maintenance</h4>
+<table>
+  <tr><th>Item</th><th>KM Interval</th><th>Month Interval</th></tr>
+  <tr><td>&#128738;&#65039; Engine Oil</td><td>10,000 km</td><td>6 months</td></tr>
+  <tr><td>&#128295; Oil Filter</td><td>10,000 km</td><td>6 months</td></tr>
+  <tr><td>&#128168; Air Filter</td><td>10,000 km</td><td>6 months</td></tr>
+  <tr><td>&#127788;&#65039; Cabin Filter</td><td>15,000 km</td><td>12 months</td></tr>
+  <tr><td>&#9981; Fuel Filter</td><td>10,000 km</td><td>6 months</td></tr>
+  <tr><td>&#129529; Brake Cleaning</td><td>10,000 km</td><td>6 months</td></tr>
+  <tr><td>&#9889; Spark Plugs</td><td>50,000 km</td><td>48 months</td></tr>
+  <tr><td>&#127777;&#65039; Coolant / Radiator Flush</td><td>50,000 km</td><td>48 months</td></tr>
+  <tr><td>&#9881;&#65039; Transmission Fluid</td><td>70,000 km</td><td>48 months</td></tr>
+  <tr><td>&#128279; Drivebelt</td><td>80,000 km</td><td>60 months</td></tr>
+  <tr><td>&#9881;&#65039; Differential Oil</td><td>40,000 km</td><td>12 months</td></tr>
+  <tr><td>&#128267; Battery &amp; Terminals</td><td>&mdash;</td><td>24 months</td></tr>
+</table>
+
+<h4>Brake Service</h4>
+<table>
+  <tr><th>Item</th><th>KM Interval</th><th>Month Interval</th></tr>
+  <tr><td>&#128721; Brake Pads (Front &amp; Rear)</td><td>40,000 km</td><td>24 months</td></tr>
+  <tr><td>&#128721; Brake Shoes</td><td>40,000 km</td><td>24 months</td></tr>
+  <tr><td>&#128312; Brake Rotors (Front &amp; Rear)</td><td>60,000 km</td><td>36 months</td></tr>
+  <tr><td>&#128312; Brake Drums</td><td>60,000 km</td><td>36 months</td></tr>
+  <tr><td>&#128721; Brake Fluid</td><td>40,000 km</td><td>12 months</td></tr>
+  <tr><td>&#128295; Brake Calipers</td><td>&mdash;</td><td>60 months</td></tr>
+  <tr><td>&#128295; Brake Hoses</td><td>&mdash;</td><td>36 months</td></tr>
+  <tr><td>&#128312; Reface Rotor Disc</td><td colspan="2">As needed</td></tr>
+</table>
+
+<h4>Major Service</h4>
+<table>
+  <tr><th>Item</th><th>KM Interval</th><th>Month Interval</th></tr>
+  <tr><td>&#9939;&#65039; Timing Belt / Chain</td><td>100,000 km</td><td>60 months</td></tr>
+  <tr><td>&#128295; EGR / Intake Cleaning (Diesel)</td><td>50,000 km</td><td>36 months</td></tr>
+  <tr><td>&#127788;&#65039; Intake / Throttle Body (Petrol)</td><td>50,000 km</td><td>36 months</td></tr>
+  <tr><td>&#127744; Turbo Cleaning</td><td>100,000 km</td><td>60 months</td></tr>
+  <tr><td>&#128260; ATF Dialysis</td><td>70,000 km</td><td>48 months</td></tr>
+</table>
+
+<h4>Troubleshooting (As Needed)</h4>
+<table>
+  <tr><th>Item</th><th>Description</th></tr>
+  <tr><td>&#128187; ECU Scanning</td><td>OBD-II diagnostic scan &mdash; DTCs, freeze frame, readiness monitors</td></tr>
+  <tr><td>&#128225; Sensor Cleaning</td><td>MAF, O2, throttle position, crankshaft, camshaft sensors</td></tr>
+  <tr><td>&#128297; Replace Parts</td><td>Defective or worn parts identified during diagnosis</td></tr>
+  <tr><td>&#128268; Rewire</td><td>Damaged harness, corroded connectors, short circuits</td></tr>
+  <tr><td>&#128421;&#65039; Reprogram</td><td>ECU software update, parameter reset, immobiliser</td></tr>
+  <tr><td>&#128270; Other</td><td>Any other troubleshooting procedure</td></tr>
+</table>
+
+<h3>Urgency Color Coding</h3>
+<table>
+  <tr><th>Color</th><th>Label</th><th>Condition</th></tr>
+  <tr><td><span class="badge badge-red">Red (dark)</span></td><td>Overdue</td><td>Past due date OR past due km</td></tr>
+  <tr><td><span class="badge" style="background:#fee2e2;color:#b91c1c">Red (light)</span></td><td>Due Soon</td><td>Within 7 days OR 500 km</td></tr>
+  <tr><td><span class="badge badge-amber">Amber</span></td><td>Upcoming</td><td>Within 30 days OR 1,500 km</td></tr>
+  <tr><td><span class="badge badge-green">Green</span></td><td>On Track</td><td>More than 30 days and 1,500 km away</td></tr>
+</table>
+
+<div class="info-box">
+  <strong>Auto-linking:</strong> When you mark an inspection item as &ldquo;Replaced&rdquo; (e.g., brake pads), the corresponding PMS record is automatically created or updated with the new service date and odometer.
+</div>
+
+<!-- ============ 8. VEHICLE PROFILE ============ -->
+<h2 id="vehicle-profile" class="page-break">8. Vehicle Profile</h2>
+<p>A complete view of a single vehicle&rsquo;s history and status. Access by tapping any vehicle card on the Dashboard.</p>
+
+<div class="screenshot">
+  <span class="icon">&#128663;</span>
+  <div class="label">[ Screenshot: Vehicle Profile screen ]</div>
+  <div class="caption">Vehicle Profile showing assessment history, health trend, and PMS status for plate UFF 4915</div>
+</div>
+
+<h3>What You See</h3>
+<table>
+  <tr><th>Section</th><th>Description</th></tr>
+  <tr><td>Vehicle Info</td><td>Plate, make, model, year, client, last odometer reading</td></tr>
+  <tr><td>Current Status</td><td>Latest assessment result and health score</td></tr>
+  <tr><td>Assessment History</td><td>All past inspections, newest first &mdash; tap to view details</td></tr>
+  <tr><td>Repeat Defects</td><td>Items that have failed across multiple inspections (pattern detection)</td></tr>
+  <tr><td>Measurable Trends</td><td>Graphs showing brake pad thickness, tread depth, or battery voltage over time</td></tr>
+  <tr><td>PMS Status</td><td>All maintenance items and their due dates for this vehicle</td></tr>
+</table>
+
+<!-- ============ 9. HISTORY ============ -->
+<h2 id="history">9. History</h2>
+<p>A fleet-wide list of all assessments ever submitted.</p>
+
+<div class="screenshot">
+  <span class="icon">&#128218;</span>
+  <div class="label">[ Screenshot: History screen ]</div>
+  <div class="caption">History screen showing all assessments with status badges and filter options</div>
+</div>
+
+<ul>
+  <li>Filter by <strong>status</strong> (Active / Conditional / Deferred)</li>
+  <li>Filter by <strong>branch</strong></li>
+  <li>Search by <strong>plate number</strong></li>
+  <li>Tap any assessment to view its full result</li>
+</ul>
+
+<!-- ============ 10. ANALYTICS ============ -->
+<h2 id="analytics">10. Analytics</h2>
+<p>Fleet-wide statistics and charts. <strong>Requires Supervisor or Fleet Manager role.</strong></p>
+
+<div class="screenshot">
+  <span class="icon">&#128200;</span>
+  <div class="label">[ Screenshot: Analytics dashboard with charts ]</div>
+  <div class="caption">Analytics screen showing pie chart of fleet status distribution and bar chart of defects by category</div>
+</div>
+
+<h3>Available Charts</h3>
+<ul>
+  <li><strong>Fleet Status Distribution</strong> &mdash; Pie chart: Active vs Conditional vs Deferred</li>
+  <li><strong>Defects by Category</strong> &mdash; Bar chart: which categories have the most issues</li>
+  <li><strong>Branch Comparison</strong> &mdash; Performance across branches</li>
+  <li><strong>Trends Over Time</strong> &mdash; Assessment volume and outcomes</li>
+</ul>
+
+<!-- ============ 11. SETTINGS ============ -->
+<h2 id="settings" class="page-break">11. Settings</h2>
+
+<div class="screenshot">
+  <span class="icon">&#9881;&#65039;</span>
+  <div class="label">[ Screenshot: Settings screen ]</div>
+  <div class="caption">Settings screen showing technician profile, error logs, and app version</div>
+</div>
+
+<table>
+  <tr><th>Setting</th><th>Description</th></tr>
+  <tr><td>Technician Name</td><td>Your name as it appears on assessments</td></tr>
+  <tr><td>Branch</td><td>Your assigned branch</td></tr>
+  <tr><td>Error Logs</td><td>View and copy client-side error logs for troubleshooting</td></tr>
+  <tr><td>App Version</td><td>Current version (v1.1.0)</td></tr>
+</table>
+
+<!-- ============ 12. USER MANAGEMENT ============ -->
+<h2 id="user-management">12. User Management</h2>
+<p><strong>Fleet Manager only.</strong></p>
+
+<div class="screenshot">
+  <span class="icon">&#128101;</span>
+  <div class="label">[ Screenshot: User Management screen ]</div>
+  <div class="caption">User Management screen showing user list with role badges</div>
+</div>
+
+<ul>
+  <li>View all registered users</li>
+  <li>Change user roles (Technician / Supervisor / Fleet Manager)</li>
+  <li>Assign users to branches</li>
+  <li>View user email and profile information</li>
+</ul>
+
+<!-- ============ 13. KEY FEATURES ============ -->
+<h2 id="key-features" class="page-break">13. Key Features</h2>
+
+<h3>Offline-First Operation</h3>
+<p>Data is cached locally using Firebase persistent cache with multi-tab support:</p>
+<ul>
+  <li>Start an inspection with no internet</li>
+  <li>Data syncs automatically when connectivity returns</li>
+  <li>A status indicator shows: Connected / Reconnecting</li>
+</ul>
+
+<h3>Session Restore</h3>
+<p>If the app is accidentally refreshed mid-inspection:</p>
+<ul>
+  <li>Your in-progress work is saved to session storage</li>
+  <li>Reopening the app resumes exactly where you left off</li>
+  <li>Applies to: inspection screen, headers, item results, expanded categories</li>
+</ul>
+
+<h3>Auto-Fill Vehicle Info</h3>
+<ul>
+  <li>When you enter a plate number, the app checks the vehicle registry</li>
+  <li>Make, model, year, and client are auto-filled from previous assessments</li>
+</ul>
+
+<h3>Photo Documentation</h3>
+<ul>
+  <li>Camera capture with automatic compression (max 600px, JPEG 0.5 quality)</li>
+  <li>KB size overlay on each photo</li>
+  <li>Stored inline with the assessment in Firestore</li>
+</ul>
+
+<h3>Auto-Link Inspections to PMS</h3>
+<p>Marking an item as &ldquo;Replaced&rdquo; auto-updates PMS. Mapped items include:</p>
+<p>Oil, Oil Filter, Air Filter, Cabin Filter, Spark Plugs, Fuel Filter, Drivebelt, Coolant, Transmission Fluid, Brake Pads (F/R), Brake Drum, Brake Shoes, Brake Fluid, Battery</p>
+
+<!-- ============ 14. ROLES ============ -->
+<h2 id="roles">14. Roles &amp; Permissions</h2>
+<table>
+  <tr><th>Feature</th><th>Technician</th><th>Supervisor</th><th>Fleet Manager</th></tr>
+  <tr><td>Dashboard</td><td>&#10004;</td><td>&#10004;</td><td>&#10004;</td></tr>
+  <tr><td>New Assessment</td><td>&#10004;</td><td>&#10004;</td><td>&#10004;</td></tr>
+  <tr><td>Inspection</td><td>&#10004;</td><td>&#10004;</td><td>&#10004;</td></tr>
+  <tr><td>PMS Tracking</td><td>&#10004;</td><td>&#10004;</td><td>&#10004;</td></tr>
+  <tr><td>Vehicle Profile</td><td>&#10004;</td><td>&#10004;</td><td>&#10004;</td></tr>
+  <tr><td>History</td><td>&#10004;</td><td>&#10004;</td><td>&#10004;</td></tr>
+  <tr><td>Analytics</td><td>&#10008;</td><td>&#10004;</td><td>&#10004;</td></tr>
+  <tr><td>Supervisor Override</td><td>&#10008;</td><td>&#10004;</td><td>&#10004;</td></tr>
+  <tr><td>User Management</td><td>&#10008;</td><td>&#10008;</td><td>&#10004;</td></tr>
+  <tr><td>Export</td><td>&#10008;</td><td>&#10004;</td><td>&#10004;</td></tr>
+</table>
+
+<!-- ============ 15. INSPECTION ITEMS REF ============ -->
+<h2 id="inspection-ref" class="page-break">15. Inspection Items Reference</h2>
+
+<h3>Engine &amp; Drivetrain (ENG) &mdash; 10 Items</h3>
+<table>
+  <tr><th>Code</th><th>Item</th><th>Type</th><th>Critical</th><th>Hold</th></tr>
+  <tr><td>ENG_OIL</td><td>Engine oil &mdash; condition &amp; level</td><td>Condition</td><td></td><td></td></tr>
+  <tr><td>ENG_OIL_FILTER</td><td>Oil filter &mdash; condition &amp; replace</td><td>Condition</td><td></td><td></td></tr>
+  <tr><td>ENG_COOL</td><td>Coolant level &amp; condition</td><td>Condition</td><td></td><td></td></tr>
+  <tr><td>ENG_MOUNT</td><td>Engine mounts</td><td>Condition</td><td></td><td></td></tr>
+  <tr><td>ENG_TRANS</td><td>Transmission fluid level</td><td>Condition</td><td></td><td></td></tr>
+  <tr><td>ENG_BELT</td><td>Drive belts condition</td><td>Condition</td><td></td><td></td></tr>
+  <tr><td>ENG_AIR</td><td>Air filter condition</td><td>Condition</td><td></td><td></td></tr>
+  <tr><td>ENG_CABIN</td><td>Cabin filter condition</td><td>Condition</td><td></td><td></td></tr>
+  <tr><td>ENG_SPARK</td><td>Spark plugs condition</td><td>Condition</td><td></td><td></td></tr>
+  <tr><td>ENG_FUEL</td><td>Fuel system &mdash; no visible leaks</td><td>Condition</td><td>&#10004;</td><td>&#10004;</td></tr>
+</table>
+
+<h3>Braking System (BRK) &mdash; 8 Items</h3>
+<table>
+  <tr><th>Code</th><th>Item</th><th>Type</th><th>Critical</th><th>Hold</th><th>Threshold</th></tr>
+  <tr><td>BRK_PAD_F</td><td>Brake pad thickness &mdash; front</td><td>Measurable</td><td>&#10004;</td><td>&#10004;</td><td>Min 3.0mm</td></tr>
+  <tr><td>BRK_PAD_R</td><td>Brake pad thickness &mdash; rear</td><td>Measurable</td><td>&#10004;</td><td>&#10004;</td><td>Min 3.0mm</td></tr>
+  <tr><td>BRK_ROTOR</td><td>Brake rotors / drums</td><td>Condition</td><td></td><td></td><td>&mdash;</td></tr>
+  <tr><td>BRK_DRUM</td><td>Brake drum condition</td><td>Condition</td><td></td><td></td><td>&mdash;</td></tr>
+  <tr><td>BRK_SHOE</td><td>Brake shoe condition</td><td>Condition</td><td>&#10004;</td><td>&#10004;</td><td>&mdash;</td></tr>
+  <tr><td>BRK_FLUID</td><td>Brake fluid level</td><td>Condition</td><td></td><td></td><td>&mdash;</td></tr>
+  <tr><td>BRK_HAND</td><td>Handbrake effectiveness</td><td>Condition</td><td>&#10004;</td><td>&#10004;</td><td>&mdash;</td></tr>
+  <tr><td>BRK_ABS</td><td>ABS warning light</td><td>Condition</td><td></td><td></td><td>&mdash;</td></tr>
+</table>
+
+<h3>Suspension &amp; Steering (SUS) &mdash; 4 Items</h3>
+<table>
+  <tr><th>Code</th><th>Item</th><th>Type</th><th>Critical</th><th>Hold</th></tr>
+  <tr><td>SUS_SHOCK</td><td>Shock absorbers &mdash; no leaks</td><td>Condition</td><td></td><td></td></tr>
+  <tr><td>SUS_TIE</td><td>Tie rods and ball joints</td><td>Condition</td><td>&#10004;</td><td>&#10004;</td></tr>
+  <tr><td>SUS_PS</td><td>Power steering fluid</td><td>Condition</td><td></td><td></td></tr>
+  <tr><td>SUS_ALIGN</td><td>Steering wheel play &amp; alignment</td><td>Condition</td><td></td><td></td></tr>
+</table>
+
+<h3>Electrical System (ELC) &mdash; 6 Items</h3>
+<table>
+  <tr><th>Code</th><th>Item</th><th>Type</th><th>Critical</th><th>Threshold</th></tr>
+  <tr><td>ELC_BATT_V</td><td>Battery voltage</td><td>Measurable</td><td></td><td>Min 12.0V</td></tr>
+  <tr><td>ELC_BATT</td><td>Battery condition &amp; terminals</td><td>Condition</td><td></td><td>&mdash;</td></tr>
+  <tr><td>ELC_LIGHTS</td><td>All exterior lights functioning</td><td>Condition</td><td>&#10004;</td><td>&mdash;</td></tr>
+  <tr><td>ELC_WIPER</td><td>Wipers and washer system</td><td>Condition</td><td></td><td>&mdash;</td></tr>
+  <tr><td>ELC_HORN</td><td>Horn functioning</td><td>Condition</td><td></td><td>&mdash;</td></tr>
+  <tr><td>ELC_DASH</td><td>Dashboard &mdash; no active warnings</td><td>Condition</td><td></td><td>&mdash;</td></tr>
+</table>
+
+<h3>Tires &amp; Wheels (TIR) &mdash; 6 Items</h3>
+<table>
+  <tr><th>Code</th><th>Item</th><th>Type</th><th>Critical</th><th>Hold</th><th>Threshold</th></tr>
+  <tr><td>TIR_TREAD_F</td><td>Front tire tread depth</td><td>Measurable</td><td>&#10004;</td><td>&#10004;</td><td>Min 1.6mm</td></tr>
+  <tr><td>TIR_TREAD_R</td><td>Rear tire tread depth</td><td>Measurable</td><td>&#10004;</td><td>&#10004;</td><td>Min 1.6mm</td></tr>
+  <tr><td>TIR_PSI</td><td>Tire inflation &mdash; all tires</td><td>Condition</td><td></td><td></td><td>&mdash;</td></tr>
+  <tr><td>TIR_SIDE</td><td>Sidewall condition</td><td>Condition</td><td>&#10004;</td><td>&#10004;</td><td>&mdash;</td></tr>
+  <tr><td>TIR_SPARE</td><td>Spare tire condition &amp; pressure</td><td>Condition</td><td></td><td></td><td>&mdash;</td></tr>
+  <tr><td>TIR_NUTS</td><td>Wheel nuts &mdash; properly torqued</td><td>Condition</td><td>&#10004;</td><td>&#10004;</td><td>&mdash;</td></tr>
+</table>
+
+<h3>Body &amp; Chassis (BOD) &mdash; 5 Items</h3>
+<table>
+  <tr><th>Code</th><th>Item</th><th>Type</th><th>Critical</th><th>Hold</th></tr>
+  <tr><td>BOD_STRUCT</td><td>Structural integrity</td><td>Condition</td><td>&#10004;</td><td>&#10004;</td></tr>
+  <tr><td>BOD_UNDER</td><td>Undercarriage &mdash; no major corrosion</td><td>Condition</td><td></td><td></td></tr>
+  <tr><td>BOD_DOOR</td><td>Door, window, lock operation</td><td>Condition</td><td></td><td></td></tr>
+  <tr><td>BOD_BELT</td><td>Seat belts &mdash; all functioning</td><td>Condition</td><td>&#10004;</td><td>&#10004;</td></tr>
+  <tr><td>BOD_WIND</td><td>Windshield &mdash; no obstructing cracks</td><td>Condition</td><td>&#10004;</td><td></td></tr>
+</table>
+
+<h3>LTO Compliance (LTO) &mdash; 5 Items</h3>
+<table>
+  <tr><th>Code</th><th>Item</th><th>Type</th><th>Compliance</th></tr>
+  <tr><td>LTO_REG</td><td>Registration &mdash; current &amp; valid</td><td>Condition</td><td>&#10004;</td></tr>
+  <tr><td>LTO_ORCR</td><td>OR/CR on board</td><td>Condition</td><td>&#10004;</td></tr>
+  <tr><td>LTO_EMIS</td><td>Emission sticker &mdash; current</td><td>Condition</td><td>&#10004;</td></tr>
+  <tr><td>LTO_MVIS</td><td>MVIS certificate &mdash; current</td><td>Condition</td><td>&#10004;</td></tr>
+  <tr><td>LTO_INS</td><td>Third-party insurance &mdash; current</td><td>Condition</td><td>&#10004;</td></tr>
+</table>
+
+<!-- ============ 16. PMS ITEMS REF ============ -->
+<h2 id="pms-ref" class="page-break">16. PMS Items Reference</h2>
+<table>
+  <tr><th>Code</th><th>Item</th><th>KM</th><th>Months</th><th>Category</th></tr>
+  <tr><td>PMS_OIL</td><td>Engine Oil</td><td>10,000</td><td>6</td><td>Scheduled</td></tr>
+  <tr><td>PMS_OIL_FILTER</td><td>Oil Filter</td><td>10,000</td><td>6</td><td>Scheduled</td></tr>
+  <tr><td>PMS_AIR</td><td>Air Filter</td><td>10,000</td><td>6</td><td>Scheduled</td></tr>
+  <tr><td>PMS_CABIN</td><td>Cabin Filter</td><td>15,000</td><td>12</td><td>Scheduled</td></tr>
+  <tr><td>PMS_FUEL</td><td>Fuel Filter</td><td>10,000</td><td>6</td><td>Scheduled</td></tr>
+  <tr><td>PMS_BRAKE_CLEAN</td><td>Brake Cleaning</td><td>10,000</td><td>6</td><td>Scheduled</td></tr>
+  <tr><td>PMS_SPARK</td><td>Spark Plugs</td><td>50,000</td><td>48</td><td>Scheduled</td></tr>
+  <tr><td>PMS_COOL</td><td>Coolant Flush</td><td>50,000</td><td>48</td><td>Scheduled</td></tr>
+  <tr><td>PMS_TRANS</td><td>Transmission Fluid</td><td>70,000</td><td>48</td><td>Scheduled</td></tr>
+  <tr><td>PMS_DRIVEBELT</td><td>Drivebelt</td><td>80,000</td><td>60</td><td>Scheduled</td></tr>
+  <tr><td>PMS_DIFF</td><td>Differential Oil</td><td>40,000</td><td>12</td><td>Scheduled</td></tr>
+  <tr><td>PMS_BATT</td><td>Battery &amp; Terminals</td><td>&mdash;</td><td>24</td><td>Scheduled</td></tr>
+  <tr><td>PMS_BRAKE_PAD_F</td><td>Brake Pads Front</td><td>40,000</td><td>24</td><td>Brake</td></tr>
+  <tr><td>PMS_BRAKE_PAD_R</td><td>Brake Pads Rear</td><td>40,000</td><td>24</td><td>Brake</td></tr>
+  <tr><td>PMS_BRAKE_SHOE</td><td>Brake Shoes</td><td>40,000</td><td>24</td><td>Brake</td></tr>
+  <tr><td>PMS_BRAKE_ROTOR_F</td><td>Brake Rotor Front</td><td>60,000</td><td>36</td><td>Brake</td></tr>
+  <tr><td>PMS_BRAKE_ROTOR_R</td><td>Brake Rotor Rear</td><td>60,000</td><td>36</td><td>Brake</td></tr>
+  <tr><td>PMS_BRAKE_DRUM</td><td>Brake Drum</td><td>60,000</td><td>36</td><td>Brake</td></tr>
+  <tr><td>PMS_BRAKE_FLUID</td><td>Brake Fluid</td><td>40,000</td><td>12</td><td>Brake</td></tr>
+  <tr><td>PMS_BRAKE_CAL</td><td>Brake Caliper</td><td>&mdash;</td><td>60</td><td>Brake</td></tr>
+  <tr><td>PMS_BRAKE_HOSE</td><td>Brake Hose</td><td>&mdash;</td><td>36</td><td>Brake</td></tr>
+  <tr><td>PMS_BRAKE_REFACE</td><td>Reface Rotor Disc</td><td>&mdash;</td><td>&mdash;</td><td>Brake</td></tr>
+  <tr><td>PMS_TIMING</td><td>Timing Belt / Chain</td><td>100,000</td><td>60</td><td>Major</td></tr>
+  <tr><td>PMS_EGR</td><td>EGR / Intake (Diesel)</td><td>50,000</td><td>36</td><td>Major</td></tr>
+  <tr><td>PMS_INTAKE</td><td>Intake / Throttle (Petrol)</td><td>50,000</td><td>36</td><td>Major</td></tr>
+  <tr><td>PMS_TURBO</td><td>Turbo Cleaning</td><td>100,000</td><td>60</td><td>Major</td></tr>
+  <tr><td>PMS_ATF</td><td>ATF Dialysis</td><td>70,000</td><td>48</td><td>Major</td></tr>
+  <tr><td>PMS_ECU</td><td>ECU Scanning</td><td>&mdash;</td><td>&mdash;</td><td>Troubleshooting</td></tr>
+  <tr><td>PMS_SENSOR</td><td>Sensor Cleaning</td><td>&mdash;</td><td>&mdash;</td><td>Troubleshooting</td></tr>
+  <tr><td>PMS_PARTS</td><td>Replace Parts</td><td>&mdash;</td><td>&mdash;</td><td>Troubleshooting</td></tr>
+  <tr><td>PMS_REWIRE</td><td>Rewire</td><td>&mdash;</td><td>&mdash;</td><td>Troubleshooting</td></tr>
+  <tr><td>PMS_REPROG</td><td>Reprogram</td><td>&mdash;</td><td>&mdash;</td><td>Troubleshooting</td></tr>
+  <tr><td>PMS_OTHER_T</td><td>Other (Troubleshooting)</td><td>&mdash;</td><td>&mdash;</td><td>Troubleshooting</td></tr>
+</table>
+
+<!-- ============ 17. LABOR TYPES REF ============ -->
+<h2 id="labor-ref">17. Labor Types Reference</h2>
+<table>
+  <tr><th>Code</th><th>Labor Type</th></tr>
+  <tr><td>LBR_PMS</td><td>&#128197; Preventive Maintenance Service</td></tr>
+  <tr><td>LBR_DIAG</td><td>&#128187; Diagnostic / ECU Scanning</td></tr>
+  <tr><td>LBR_TROUBLESHOOT</td><td>&#128269; Troubleshooting</td></tr>
+  <tr><td>LBR_ENGINE</td><td>&#9881;&#65039; Engine Repair</td></tr>
+  <tr><td>LBR_BRAKE</td><td>&#128721; Brake Service</td></tr>
+  <tr><td>LBR_SUSPENSION</td><td>&#128295; Suspension &amp; Steering Repair</td></tr>
+  <tr><td>LBR_ELECTRICAL</td><td>&#9889; Electrical Repair</td></tr>
+  <tr><td>LBR_TIRE</td><td>&#128308; Tire Service / Replacement</td></tr>
+  <tr><td>LBR_BODY</td><td>&#128663; Body &amp; Chassis Repair</td></tr>
+  <tr><td>LBR_OIL</td><td>&#128738;&#65039; Oil Change / Fluid Service</td></tr>
+  <tr><td>LBR_FILTER</td><td>&#128168; Filter Replacement</td></tr>
+  <tr><td>LBR_BELT</td><td>&#128279; Belt / Hose Replacement</td></tr>
+  <tr><td>LBR_AC</td><td>&#10052;&#65039; Air Conditioning Service</td></tr>
+  <tr><td>LBR_ALIGN</td><td>&#9878;&#65039; Wheel Alignment / Balancing</td></tr>
+  <tr><td>LBR_REWIRE</td><td>&#128268; Rewiring / Harness Repair</td></tr>
+  <tr><td>LBR_REPROG</td><td>&#128421;&#65039; Reprogramming / ECU Update</td></tr>
+  <tr><td>LBR_OTHER</td><td>&#128221; Other</td></tr>
+</table>
+
+<!-- ============ 18. STATUS & COLOR GUIDE ============ -->
+<h2 id="colors" class="page-break">18. Status &amp; Color Guide</h2>
+
+<h3>Vehicle Assessment Status</h3>
+<table>
+  <tr><th>Status</th><th>Color</th><th>Meaning</th><th>Dispatch</th></tr>
+  <tr><td><span class="badge badge-green">ACTIVE</span></td><td>Green</td><td>All items pass &mdash; vehicle is roadworthy</td><td>&#10004; Cleared</td></tr>
+  <tr><td><span class="badge badge-amber">CONDITIONAL</span></td><td>Amber</td><td>Has monitored items &mdash; needs follow-up</td><td>&#10004; Cleared (reassess in 30 days)</td></tr>
+  <tr><td><span class="badge badge-red">DEFERRED</span></td><td>Red</td><td>Has critical failures &mdash; not roadworthy</td><td>&#9940; BLOCKED (reassess in 3 days)</td></tr>
+</table>
+
+<h3>Inspection Item Results</h3>
+<table>
+  <tr><th>Result</th><th>Color</th><th>Meaning</th></tr>
+  <tr><td><span class="badge badge-green">Pass</span></td><td>Green</td><td>Item is in acceptable condition</td></tr>
+  <tr><td><span class="badge badge-amber">Monitor</span></td><td>Amber</td><td>Minor issue &mdash; needs watching</td></tr>
+  <tr><td><span class="badge badge-red">Fail Critical</span></td><td>Red</td><td>Serious defect &mdash; needs immediate action</td></tr>
+  <tr><td><span class="badge badge-blue">Replaced</span></td><td>Blue</td><td>Part was replaced during inspection</td></tr>
+  <tr><td><span class="badge badge-gray">N/A</span></td><td>Gray</td><td>Not applicable to this vehicle</td></tr>
+</table>
+
+<h3>Action Recommendations</h3>
+<table>
+  <tr><th>Action</th><th>Color</th><th>Triggered By</th></tr>
+  <tr><td>No Action</td><td>Green</td><td>Pass, N/A, or Replaced items</td></tr>
+  <tr><td>Monitor</td><td>Amber</td><td>Monitor result on any item</td></tr>
+  <tr><td>Repair Required</td><td>Orange</td><td>Fail Critical on compliance or standard items</td></tr>
+  <tr><td>Repair Immediately</td><td>Red</td><td>Fail Critical on critical items</td></tr>
+  <tr><td>&#9940; Hold Unit</td><td>Dark Red</td><td>Fail Critical on hold-unit items (brakes, tires, structural)</td></tr>
+</table>
+
+<!-- ============ 19. SUPPORT ============ -->
+<h2 id="support">19. Troubleshooting &amp; Support</h2>
+
+<h3>Common Issues</h3>
+<table>
+  <tr><th>Problem</th><th>Solution</th></tr>
+  <tr><td>App shows &ldquo;Reconnecting&rdquo;</td><td>Check internet. Data is cached &mdash; you can continue working offline</td></tr>
+  <tr><td>Assessment not saving</td><td>Check connection status. Pending writes sync automatically when back online</td></tr>
+  <tr><td>Photos not loading</td><td>Large photos may take time on slow connections. Photos are compressed to ~50-100KB</td></tr>
+  <tr><td>Login fails</td><td>Verify email and password. Contact your Fleet Manager if locked out</td></tr>
+  <tr><td>App crashes</td><td>Error is auto-logged. Go to Settings &gt; Error Logs, copy details, send to admin</td></tr>
+</table>
+
+<h3>Error Reporting</h3>
+<ol>
+  <li>Go to <strong>Settings</strong></li>
+  <li>Scroll to <strong>Error Logs</strong></li>
+  <li>Tap <strong>Copy Error Details</strong></li>
+  <li>Send the copied text to your app administrator</li>
+</ol>
+
+<div class="warn-box">
+  <strong>Tip:</strong> Error logs include timestamp, error message, stack trace, and app version &mdash; all the information your admin needs to diagnose the issue.
+</div>
+
+<h3>App Info</h3>
+<table>
+  <tr><th>Detail</th><th>Value</th></tr>
+  <tr><td>App Version</td><td>1.1.0</td></tr>
+  <tr><td>Platform</td><td>Web (mobile-optimized)</td></tr>
+  <tr><td>Backend</td><td>Firebase (Firestore + Authentication)</td></tr>
+  <tr><td>Offline Support</td><td>Yes &mdash; persistent local cache with multi-tab support</td></tr>
+</table>
+
+<!-- ============ FOOTER ============ -->
+<div class="footer" style="margin-top: 60px;">
+  <p><strong>MG Fleet Management System (FMS)</strong></p>
+  <p>fleet.mastergarage.ph &bull; Master Garage Auto Services</p>
+  <p style="margin-top: 8px;">Document generated April 2026 &bull; App Version 1.1.0</p>
+</div>
+
+</body>
+</html>

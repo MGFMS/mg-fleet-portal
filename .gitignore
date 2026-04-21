@@ -1,0 +1,17 @@
+node_modules
+dist
+dist-ssr
+.env
+.env.local
+.env.*.local
+*.log
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# Legacy .NET reference code — kept local only
+_reference_dotnet/
+
+# Firebase CLI cache
+.firebase/

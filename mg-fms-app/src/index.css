@@ -1,0 +1,206 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Print-specific styles for PDF report generation ── */
+@media print {
+  /* Hide the entire app UI */
+  body > #root > *:not(#print-report-portal) { display: none !important; }
+  #print-report-portal {
+    display: block !important;
+    position: static !important;
+    width: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+
+  body, html {
+    margin: 0; padding: 0;
+    background: white !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  @page {
+    size: A4;
+    margin: 12mm 10mm;
+  }
+
+  .print-report {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 10pt;
+    line-height: 1.4;
+    color: #1a1a1a;
+    max-width: 100%;
+  }
+
+  .print-report * { box-sizing: border-box; }
+
+  /* Header */
+  .pr-header {
+    background: #b91c1c !important;
+    color: white !important;
+    padding: 16px 20px;
+    margin-bottom: 0;
+  }
+  .pr-header-title { font-size: 14pt; font-weight: 900; letter-spacing: 0.05em; }
+  .pr-header-sub { font-size: 8pt; opacity: 0.7; margin-top: 2px; }
+
+  /* Status banner */
+  .pr-status {
+    padding: 12px 20px;
+    font-weight: 900;
+    font-size: 13pt;
+    color: white !important;
+  }
+  .pr-status-active { background: #15803d !important; }
+  .pr-status-conditional { background: #d97706 !important; }
+  .pr-status-deferred { background: #b91c1c !important; }
+  .pr-dispatch {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 3px 12px;
+    border-radius: 20px;
+    font-size: 9pt;
+    font-weight: 700;
+  }
+  .pr-dispatch-yes { background: #22c55e !important; color: white !important; }
+  .pr-dispatch-no { background: rgba(0,0,0,0.3) !important; color: white !important; }
+
+  /* Sections */
+  .pr-section {
+    padding: 10px 20px;
+    border-bottom: 1px solid #e5e7eb;
+    page-break-inside: avoid;
+  }
+  .pr-section-title {
+    font-size: 8pt;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #9ca3af;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 2px solid #f3f4f6;
+  }
+
+  /* Info grid */
+  .pr-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 16px;
+  }
+  .pr-info-label { font-size: 8pt; color: #9ca3af; }
+  .pr-info-value { font-size: 9pt; font-weight: 700; color: #1f2937; }
+
+  /* Classification rows */
+  .pr-class-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3px 0;
+  }
+  .pr-class-label { font-size: 9pt; color: #6b7280; }
+  .pr-badge {
+    font-size: 8pt;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+  }
+  .pr-badge-green { background: #dcfce7 !important; color: #166534 !important; }
+  .pr-badge-red { background: #fee2e2 !important; color: #991b1b !important; }
+  .pr-badge-amber { background: #fef3c7 !important; color: #92400e !important; }
+  .pr-badge-gray { background: #f3f4f6 !important; color: #4b5563 !important; }
+  .pr-badge-orange { background: #ffedd5 !important; color: #9a3412 !important; }
+
+  /* Findings */
+  .pr-finding {
+    padding: 6px 10px;
+    margin-bottom: 4px;
+    border-radius: 6px;
+    border: 1px solid;
+    page-break-inside: avoid;
+  }
+  .pr-finding-crit { background: #fef2f2 !important; border-color: #fecaca !important; }
+  .pr-finding-mon { background: #fffbeb !important; border-color: #fde68a !important; }
+  .pr-finding-rep { background: #eff6ff !important; border-color: #bfdbfe !important; }
+  .pr-finding-label { font-size: 9pt; font-weight: 700; color: #1f2937; }
+  .pr-finding-detail { font-size: 8pt; margin-top: 2px; }
+
+  /* Checklist table */
+  .pr-checklist-cat {
+    font-size: 9pt;
+    font-weight: 800;
+    color: #374151;
+    padding: 6px 0 4px;
+    border-bottom: 1px solid #e5e7eb;
+    page-break-after: avoid;
+  }
+  .pr-checklist-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 0;
+    border-bottom: 1px solid #f9fafb;
+    font-size: 8.5pt;
+    page-break-inside: avoid;
+  }
+  .pr-check-dot {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 7pt;
+    font-weight: 700;
+    color: white !important;
+    flex-shrink: 0;
+  }
+  .pr-dot-pass { background: #16a34a !important; }
+  .pr-dot-monitor { background: #f59e0b !important; }
+  .pr-dot-fail { background: #dc2626 !important; }
+  .pr-dot-replaced { background: #2563eb !important; }
+  .pr-dot-na { background: #9ca3af !important; }
+  .pr-dot-none { background: #d1d5db !important; color: #9ca3af !important; }
+
+  /* PMS table */
+  .pr-pms-item {
+    padding: 5px 0;
+    border-bottom: 1px solid #f3f4f6;
+    page-break-inside: avoid;
+  }
+  .pr-pms-label { font-size: 9pt; font-weight: 600; }
+  .pr-pms-detail { font-size: 8pt; color: #6b7280; margin-top: 1px; }
+
+  /* ECU section */
+  .pr-ecu-code {
+    display: inline-block;
+    font-family: monospace;
+    font-size: 9pt;
+    font-weight: 800;
+    color: #dc2626;
+    background: #fef2f2 !important;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin: 2px 4px 2px 0;
+  }
+
+  /* Footer */
+  .pr-footer {
+    text-align: center;
+    padding: 12px 20px;
+    border-top: 2px solid #b91c1c;
+    margin-top: 8px;
+    font-size: 8pt;
+    color: #6b7280;
+  }
+  .pr-footer-brand { font-weight: 800; color: #1f2937; }
+
+  /* Utility */
+  .pr-page-break { page-break-before: always; }
+  .pr-reassess-note { font-size: 8pt; margin-top: 4px; }
+}
+

@@ -1,0 +1,173 @@
+flowchart TD
+    A([🔐 LOGIN SCREEN]) --> B{Authenticated?}
+    B -- No --> A
+    B -- Yes --> C
+
+    C([🏠 DASHBOARD])
+    C --> C1[View Status Cards\nActive / Conditional / Deferred]
+    C --> C2[PMS Due Alerts]
+    C --> C3[Search Plate Number]
+    C --> C4[Recent Assessments]
+    C --> NAV
+
+    NAV{Bottom Navigation}
+    NAV --> C
+    NAV --> HIST([📋 HISTORY])
+    NAV --> ANA([📊 ANALYTICS])
+    NAV --> SET([⚙️ SETTINGS])
+
+    %% NEW ASSESSMENT FLOW
+    C -- Start New Assessment --> S1
+
+    S1([STEP 1\n📝 VEHICLE DETAILS])
+    S1 --> S1A[Enter Plate Number]
+    S1A --> S1B[Enter Technician Name]
+    S1B --> S1C[Enter Odometer]
+    S1C --> S1D[Select Client]
+    S1D --> S1E[Select Branch]
+    S1E --> S1F[Select Assessment Type]
+    S1F --> S1G{All fields\ncomplete?}
+    S1G -- No --> S1A
+    S1G -- Yes --> S2
+
+    S2([STEP 2\n🔍 INSPECTION CHECKLIST])
+    S2 --> S2A[Engine & Drivetrain\nENG_OIL · ENG_OIL_FILTER · ENG_COOL\nENG_MOUNT · ENG_TRANS · ENG_BELT\nENG_AIR · ENG_FUEL]
+    S2A --> S2B[Braking System\nBRK_PAD_F · BRK_PAD_R · BRK_ROTOR\nBRK_FLUID · BRK_HAND · BRK_ABS]
+    S2B --> S2C[Suspension & Steering\nSUS_SHOCK · SUS_TIE · SUS_PS · SUS_ALIGN]
+    S2C --> S2D[Electrical System\nELC_BATT_V · ELC_BATT · ELC_LIGHTS\nELC_WIPER · ELC_HORN · ELC_DASH]
+    S2D --> S2E[Tires & Wheels\nTIR_TREAD_F · TIR_TREAD_R · TIR_PSI\nTIR_SIDE · TIR_SPARE · TIR_NUTS]
+    S2E --> S2F[Body & Chassis\nBOD_STRUCT · BOD_UNDER · BOD_DOOR\nBOD_BELT · BOD_WIND]
+    S2F --> S2G[LTO Compliance\nLTO_REG · LTO_ORCR · LTO_EMIS\nLTO_MVIS · LTO_INS]
+
+    S2G --> S2H{Each item marked\nPass / Monitor /\nFail / Replaced / NA?}
+    S2H -- Not yet --> S2A
+    S2H -- All 42 items done --> S3
+
+    %% ITEM RESULT LOGIC
+    RESULT_LOGIC([Per-Item Logic])
+    RESULT_LOGIC --> RL1[PASS → No action]
+    RESULT_LOGIC --> RL2[MONITOR → Note defect\nAdd photo optional]
+    RESULT_LOGIC --> RL3[FAIL CRITICAL → Select defect type\nAdd photo + note]
+    RESULT_LOGIC --> RL4[REPLACED → Enter part name\nQty · Before+After measure\nPhotos required]
+    RESULT_LOGIC --> RL5[N/A → Skip item]
+
+    S3([STEP 3\n🔧 SERVICES & PROCEDURES])
+
+    S3 --> ECU[💻 ECU SCANNING\nMandatory every visit]
+    ECU --> ECU1[Add DTC codes or mark No Codes]
+    ECU1 --> ECU2[Attach scan report photos]
+    ECU2 --> ECU3[Add scan notes]
+
+    S3 --> DEF{Defects found\nin inspection?}
+    DEF -- Yes --> DEF1[Mark each defect as Fixed]
+    DEF1 --> DEF2[Select action taken\nReplaced / Cleaned / Adjusted etc]
+    DEF2 --> DEF3[Enter after-measurement if measurable]
+    DEF3 --> DEF4[Add repair note]
+    DEF -- No --> TABS
+
+    DEF4 --> TABS
+
+    TABS[Service Tabs]
+    TABS --> T1[🗓 PMS — Scheduled\nOil & Filter · Air Filter · Fuel Filter\nBrake Cleaning · Spark Plugs\nBrake Fluid · Coolant · Trans Fluid\nTiming Belt · Diff Oil · Battery]
+    TABS --> T2[⚙️ Major Services\nEGR Cleaning · Intake Cleaning\nTurbo Cleaning · ATF Dialysis]
+    TABS --> T3[🔍 Troubleshooting\nSensor Cleaning · Replace Parts\nRewire · Reprogram · Other]
+    TABS --> T4[📝 Other\nFree-text service description]
+
+    T1 --> DOC[For each checked service\n🔩 Part / Material name\nQty selector\n📷 Up to 5 photos\nBefore · New Part · After]
+    T2 --> DOC
+    T3 --> DOC
+    T4 --> DOC
+
+    DOC --> SUBMIT[Submit Assessment]
+
+    %% RULE ENGINE
+    SUBMIT --> ENGINE([⚙️ RULE ENGINE])
+    ENGINE --> E1{Any FAIL CRITICAL\nitems remaining?}
+    E1 -- Yes → DEFERRED --> E2[Dispatch BLOCKED\nReassessment in 3 days]
+    E1 -- No → check monitor --> E3{Any MONITOR\nitems?}
+    E3 -- Yes → CONDITIONAL --> E4[Dispatch ALLOWED\nReassessment in 30 days]
+    E3 -- No → ACTIVE --> E5[Dispatch ALLOWED\nNo reassessment needed]
+
+    E2 --> RESULT
+    E4 --> RESULT
+    E5 --> RESULT
+
+    REPLACED_CHECK{All FAIL CRITICAL\nreplaced on-site?}
+    ENGINE --> REPLACED_CHECK
+    REPLACED_CHECK -- Yes → force ACTIVE --> E5
+
+    %% RESULT SCREEN
+    RESULT([📋 RESULT SCREEN])
+    RESULT --> R1[Status Banner\nACTIVE / CONDITIONAL / DEFERRED]
+    RESULT --> R2[Dispatch Cleared or Blocked]
+    RESULT --> R3[Findings Summary\nOpen issues vs Fixed on-site]
+    RESULT --> R4[Services Completed\nParts used · Qty · Photos]
+    RESULT --> R5[ECU Scan Summary]
+    RESULT --> R6[FMS Sync Status]
+
+    RESULT --> ACTIONS{Actions}
+    ACTIONS --> ACT1[🏠 Go Home]
+    ACTIONS --> ACT2[🚗 Vehicle Profile]
+    ACTIONS --> ACT3[📄 Full Report]
+    ACTIONS --> ACT4[👤 Supervisor Override]
+    ACTIONS --> ACT5[📋 Share Summary\nCopy to clipboard]
+    ACTIONS --> ACT6[🔄 Start Re-Assessment]
+
+    %% SUPERVISOR OVERRIDE
+    ACT4 --> SUP[Supervisor Panel]
+    SUP --> SUP1[Enter supervisor name]
+    SUP1 --> SUP2[Add remarks]
+    SUP2 --> SUP3[Override reassessment date]
+    SUP3 --> SUP4{Clear dispatch\nblock?}
+    SUP4 -- Yes --> SUP5[Unit cleared\nStatus → Conditional\nTimestamp recorded]
+    SUP4 -- No --> SUP6[Save remarks only]
+
+    %% VEHICLE PROFILE
+    ACT2 --> VP([🚗 VEHICLE PROFILE])
+    VP --> VP1[Health Score 0-100]
+    VP --> VP2[Assessment History tab\nAll past RWAs for plate]
+    VP --> VP3[PMS Schedule tab\nNext due km · date · status]
+    VP --> VP4[Repeat Defect Warnings\nFlagged 2+ times]
+    VP --> VP5[Measurable Value Trends\nBrake pad wear over time]
+    VP --> VP6[🔄 Start Re-Assessment]
+
+    %% HISTORY
+    HIST --> HF1[Filter by Status\nAll / Active / Conditional / Deferred]
+    HF1 --> HF2[Filter by Branch]
+    HF2 --> HF3[Search by Plate]
+    HF3 --> HF4[Tap any record → Result Screen]
+
+    %% ANALYTICS
+    ANA --> AN1[Overview\nFleet-wide status counts]
+    AN1 --> AN2[By Branch breakdown]
+    AN2 --> AN3[By Client breakdown]
+    AN3 --> AN4[Reassessment Queue\nSorted by urgency]
+    AN4 --> AN5[Deferred Units list\nOn-hold vehicles]
+    AN5 --> AN6[Most Common Defects]
+
+    %% SETTINGS
+    SET --> ST1[Mechanic Profile\nName + Branch auto-fill]
+    SET --> ST2[App Info & Version]
+    SET --> ST3[Branch Coverage stats]
+    SET --> ST4[Contact Information]
+    SET --> ST5[Reset to Demo Data]
+    SET --> ST6[Error Logs\nCopy & clear]
+    SET --> ST7[🚪 Log Out]
+
+    %% STYLES
+    style A fill:#b91c1c,color:#fff,stroke:#7f1d1d
+    style C fill:#b91c1c,color:#fff,stroke:#7f1d1d
+    style S1 fill:#1d4ed8,color:#fff,stroke:#1e3a8a
+    style S2 fill:#1d4ed8,color:#fff,stroke:#1e3a8a
+    style S3 fill:#1d4ed8,color:#fff,stroke:#1e3a8a
+    style ENGINE fill:#7c3aed,color:#fff,stroke:#4c1d95
+    style RESULT fill:#b91c1c,color:#fff,stroke:#7f1d1d
+    style VP fill:#065f46,color:#fff,stroke:#064e3b
+    style HIST fill:#92400e,color:#fff,stroke:#78350f
+    style ANA fill:#1e3a5f,color:#fff,stroke:#1e3a8a
+    style SET fill:#374151,color:#fff,stroke:#111827
+    style E2 fill:#dc2626,color:#fff,stroke:#991b1b
+    style E4 fill:#d97706,color:#fff,stroke:#92400e
+    style E5 fill:#16a34a,color:#fff,stroke:#14532d
+    style DOC fill:#0369a1,color:#fff,stroke:#0c4a6e
+    style ECU fill:#1d4ed8,color:#fff,stroke:#1e3a8a

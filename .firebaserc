@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "mg-fms"
+  },
+  "targets": {
+    "mg-fms": {
+      "hosting": {
+        "mg-fleet-portal": [
+          "mg-fleet-portal"
+        ]
+      }
+    }
+  }
+}

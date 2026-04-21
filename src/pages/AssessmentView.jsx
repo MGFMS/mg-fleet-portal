@@ -1,0 +1,360 @@
+// Full assessment report — mirrors the mg-fms "result" screen
+// (mg-fms-app/src/App.jsx ~1028–1053). Route: /assessments/:rwa
+//
+// Layout: gradient banner (status) → vehicle & inspection card → classification
+// → assessment findings (critical / monitor / replaced) → services completed →
+// supervisor override card (if any). Read-only — no re-assess action.
+
+import { useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { collection, getDocs, limit, query, where } from 'firebase/firestore'
+import { db } from '../lib/firebase'
+import {
+  ALL_ITEMS, CATEGORIES, DEFECT_CODES, PMS_ITEMS, SC, ACTION_CFG,
+  calcHealthScore, healthColor, getAction,
+} from '../lib/mgfms-catalog'
+
+async function fetchAssessmentByRwa(rwa) {
+  if (!db || !rwa) return null
+  const snap = await getDocs(query(
+    collection(db, 'assessments'),
+    where('rwaNumber', '==', rwa),
+    limit(1),
+  ))
+  if (snap.empty) return null
+  const d = snap.docs[0]
+  return { _docId: d.id, ...d.data() }
+}
+
+export default function AssessmentView() {
+  const { rwa } = useParams()
+  const navigate = useNavigate()
+  const [state, setState] = useState({ loading: true, assessment: null, error: null })
+
+  useEffect(() => {
+    let cancelled = false
+    fetchAssessmentByRwa(rwa)
+      .then((a) => { if (!cancelled) setState({ loading: false, assessment: a, error: null }) })
+      .catch((err) => { if (!cancelled) setState({ loading: false, assessment: null, error: err }) })
+    return () => { cancelled = true }
+  }, [rwa])
+
+  if (state.loading) return <div className="p-6 text-gray-500">Loading assessment…</div>
+  if (!state.assessment) {
+    return (
+      <div className="p-6">
+        <button onClick={() => navigate(-1)} className="text-sm text-gray-500 hover:underline mb-4">← Back</button>
+        <div className="bg-amber-50 border border-amber-200 text-amber-900 text-sm rounded-md p-4">
+          <div className="font-semibold mb-1">Assessment not found</div>
+          <div className="text-xs">
+            No assessment in mg-fms with RWA number <span className="font-mono">{rwa}</span>.
+            {state.error && <> ({String(state.error.code || state.error.message)})</>}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const a = state.assessment
+  const cls = a.classification || {}
+  const cfg = SC[cls.overallStatus] || SC.active
+  const score = calcHealthScore(cls, a.itemResults || {})
+  const hc = healthColor(score)
+
+  const findings = ALL_ITEMS.filter((i) => {
+    const r = a.itemResults?.[i.code]
+    return r?.resultCode === 'fail_critical' || r?.resultCode === 'monitor' || r?.resultCode === 'replaced'
+  })
+
+  return (
+    <div className="pb-16">
+      <button
+        onClick={() => navigate(-1)}
+        className="m-4 text-sm text-gray-500 hover:underline"
+      >
+        ← Back
+      </button>
+
+      {/* ── Gradient status banner ─────────────────────────────────── */}
+      <div className={`bg-gradient-to-b ${cfg.grad} text-white px-4 py-6 text-center mx-4 rounded-2xl`}>
+        <div className="text-xs font-bold tracking-widest opacity-60 mb-2">ASSESSMENT RESULT</div>
+        <div className="text-2xl font-black mb-1">{cfg.label}</div>
+        <div className="text-sm opacity-60 mb-3">{a.rwaNumber}</div>
+        <div
+          className={`inline-flex items-center gap-2 px-5 py-2 rounded-full font-bold text-sm shadow ${
+            cls.dispatchAllowed ? 'bg-green-500 text-white' : 'bg-black/30 text-red-100'
+          }`}
+        >
+          {cls.dispatchAllowed ? '✓ Dispatch Allowed' : '⛔ Unit on Hold — Do NOT Dispatch'}
+        </div>
+        {cls.reassessmentDue && (
+          <div className="mt-2 text-xs opacity-80">
+            {cls.overallStatus === 'deferred'
+              ? `⏰ Reassessment by ${cls.reassessmentDue}`
+              : `📅 Next check by ${cls.reassessmentDue}`}
+          </div>
+        )}
+        <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 text-xs">
+          <span className="font-bold">Health Score:</span>
+          <span className={`font-black ${hc.text} bg-white rounded px-2`}>{score}</span>
+        </div>
+      </div>
+
+      <div className="px-4 pt-4 space-y-4">
+        {/* ── Vehicle & inspection header ─────────────────────────── */}
+        <Card>
+          <CardTitle>Vehicle & Inspection</CardTitle>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 mt-3">
+            {[
+              ['Plate', a.header?.plate],
+              ['Vehicle', [a.header?.make, a.header?.model, a.header?.yearModel && `(${a.header.yearModel})`].filter(Boolean).join(' ') || '—'],
+              ['Client', a.header?.client],
+              ['Branch', a.header?.branch],
+              ['Technician', a.header?.technician],
+              ['Odometer', a.header?.odometer ? `${a.header.odometer} km` : '—'],
+              ['Type', a.header?.type],
+              ['Date', a.header?.date],
+            ].map(([k, v]) => (
+              <div key={k}>
+                <div className="text-xs text-gray-400">{k}</div>
+                <div className="text-sm font-bold text-gray-800">{v || '—'}</div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        {/* ── Classification summary ──────────────────────────────── */}
+        <Card>
+          <CardTitle>Classification</CardTitle>
+          <div className="space-y-2 mt-3">
+            {[
+              { label: 'Technical Status',   value: (cls.technicalStatus || cls.overallStatus || '').toUpperCase(), color: SC[cls.technicalStatus || cls.overallStatus]?.badge },
+              { label: 'Compliance',         value: cls.complianceStatus === 'compliant' ? 'COMPLIANT' : 'NON-COMPLIANT', color: cls.complianceStatus === 'compliant' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' },
+              { label: 'Dispatch Allowed',   value: cls.dispatchAllowed ? 'YES' : 'NO', color: cls.dispatchAllowed ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' },
+              { label: 'Critical Items',     value: String(cls.failCriticalCount || 0), color: cls.failCriticalCount > 0 ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-600' },
+              { label: 'Monitors',           value: String(cls.monitorCount || 0), color: cls.monitorCount > 0 ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600' },
+              { label: 'Dispatch Blockers',  value: String(cls.totalBlockerCount || 0), color: cls.totalBlockerCount > 0 ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-600' },
+              { label: 'Reassessment Due',   value: cls.reassessmentDue || 'None', color: cls.reassessmentDue ? 'bg-orange-100 text-orange-800' : 'bg-gray-100 text-gray-600' },
+            ].map((r) => (
+              <div key={r.label} className="flex items-center justify-between">
+                <span className="text-sm text-gray-500">{r.label}</span>
+                <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${r.color || 'bg-gray-100 text-gray-600'}`}>{r.value}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        {/* ── Assessment findings ────────────────────────────────── */}
+        {findings.length === 0 ? (
+          <div className="bg-green-50 border-2 border-green-300 rounded-2xl p-6 text-center">
+            <div className="text-4xl mb-2">✅</div>
+            <div className="font-black text-green-700 text-lg">All Items Passed</div>
+            <div className="text-green-600 text-sm mt-1">Vehicle is roadworthy and cleared for dispatch</div>
+          </div>
+        ) : (
+          <div className="rounded-2xl border-2 border-gray-200 overflow-hidden bg-white">
+            <div className="bg-gray-800 px-4 py-3">
+              <div className="font-black text-white text-sm">Assessment Findings ({findings.length})</div>
+            </div>
+            {findings.map((item) => {
+              const r = a.itemResults?.[item.code] || {}
+              const isResolved = r.resultCode === 'replaced'
+              const isCrit = r.resultCode === 'fail_critical'
+              const isMon = r.resultCode === 'monitor'
+              return (
+                <div
+                  key={item.code}
+                  className={`border-b border-gray-100 last:border-0 ${isResolved ? 'bg-green-50' : isCrit ? 'bg-red-50' : 'bg-amber-50'}`}
+                >
+                  <div className="px-4 py-3 flex items-start gap-3">
+                    <div className={`shrink-0 text-[10px] font-black px-2 py-1 rounded-lg ${
+                      isResolved ? 'bg-blue-600 text-white'
+                      : isCrit ? 'bg-red-600 text-white'
+                      : 'bg-amber-500 text-white'
+                    }`}>
+                      {isResolved ? 'FIXED' : isCrit ? 'CRIT' : 'MON'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className={`font-bold text-sm ${isResolved ? 'text-gray-500 line-through' : 'text-gray-800'}`}>{item.label}</div>
+                      <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                        {r.defectCode && (
+                          <span className={`text-xs font-semibold ${isResolved ? 'text-gray-400' : isCrit ? 'text-red-600' : 'text-amber-600'}`}>
+                            {DEFECT_CODES[r.defectCode] || r.defectCode}
+                          </span>
+                        )}
+                        {r.measuredValue !== undefined && r.measuredValue !== '' && (
+                          <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded ${isResolved ? 'bg-gray-100 text-gray-400' : 'bg-red-100 text-red-700'}`}>
+                            {r.measuredValue}{item.unit || ''}
+                            {item.threshold ? ` / min ${item.threshold}${item.unit || ''}` : ''}
+                          </span>
+                        )}
+                        {r.partReplaced && (
+                          <span className="text-xs text-blue-700 font-semibold">🔩 {r.partQty > 1 ? `${r.partQty}× ` : ''}{r.partReplaced}</span>
+                        )}
+                      </div>
+                      {r.note && <div className="text-xs text-gray-500 italic mt-1">"{r.note}"</div>}
+                      {!isResolved && (
+                        <div className={`text-[11px] font-semibold mt-1 ${isCrit ? 'text-red-700' : 'text-amber-700'}`}>
+                          {ACTION_CFG[getAction(item, r.resultCode)]?.label || ''}
+                        </div>
+                      )}
+                    </div>
+                    {!isResolved && (
+                      <span className={`shrink-0 text-xs font-black px-2.5 py-1 rounded-full ${isCrit ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>⚠ OPEN</span>
+                    )}
+                    {isResolved && (
+                      <span className="shrink-0 text-xs font-black px-2.5 py-1 rounded-full bg-green-100 text-green-700">✓ FIXED</span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* ── Full inspection item breakdown (collapsed by category) ─ */}
+        <InspectionBreakdown itemResults={a.itemResults || {}} />
+
+        {/* ── PMS services performed this visit ──────────────────── */}
+        {a.pmsData?.updates && Object.keys(a.pmsData.updates).length > 0 && (
+          <Card>
+            <CardTitle>🔧 Services Completed This Visit</CardTitle>
+            <div className="space-y-2 mt-3">
+              {Object.entries(a.pmsData.updates).map(([code, upd]) => {
+                const p = PMS_ITEMS.find((x) => x.code === code)
+                const detail = a.pmsData.serviceDetails?.[code]
+                return (
+                  <div key={code} className="bg-white rounded-xl p-3 border border-green-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">{p?.icon || '🔧'}</span>
+                        <span className="text-sm font-semibold text-gray-800">{p?.label || code}</span>
+                      </div>
+                      {upd?.nextOdo && (
+                        <div className="text-right">
+                          <div className="text-xs font-bold text-green-700">Next: {Number(upd.nextOdo).toLocaleString()} km</div>
+                          <div className="text-xs text-gray-400">{upd.nextDate}</div>
+                        </div>
+                      )}
+                    </div>
+                    {detail?.brand && (
+                      <div className="text-xs text-blue-700 font-semibold mt-1">
+                        🔩 {detail.qty > 1 ? `${detail.qty}× ` : ''}{detail.brand}
+                      </div>
+                    )}
+                    {detail?.photos?.length > 0 && (
+                      <div className="flex gap-1.5 mt-2 flex-wrap">
+                        {detail.photos.map((src, i) => (
+                          <img key={i} src={src} className="w-14 h-14 rounded-lg object-cover border border-gray-200" alt={`Photo ${i + 1}`} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </Card>
+        )}
+
+        {/* ── Supervisor override ─────────────────────────────────── */}
+        {a.supervisorCleared && (
+          <div className="bg-blue-50 border-2 border-blue-300 rounded-2xl p-4">
+            <div className="font-black text-blue-700 text-sm mb-1">👤 Supervisor Override Applied</div>
+            <div className="text-xs text-blue-600">Cleared by: {a.supervisorName}</div>
+            {a.supervisorTs && <div className="text-xs text-gray-400">{new Date(a.supervisorTs).toLocaleString('en-PH')}</div>}
+            {a.supervisorRemarks && <div className="text-xs text-gray-600 mt-1 italic">"{a.supervisorRemarks}"</div>}
+          </div>
+        )}
+
+        {a.resolvedByRwa && (
+          <div className="bg-green-600 text-white rounded-2xl p-4 flex items-start gap-3">
+            <div className="text-3xl">✅</div>
+            <div className="flex-1">
+              <div className="font-black text-base">This Assessment Has Been Resolved</div>
+              <div className="text-green-100 text-xs mt-1">
+                Superseded by <span className="font-mono font-bold">{a.resolvedByRwa}</span>
+                {a.resolvedAt && ` on ${new Date(a.resolvedAt).toLocaleDateString('en-PH')}`}.
+              </div>
+              <button
+                onClick={() => navigate(`/assessments/${a.resolvedByRwa}`)}
+                className="mt-2 bg-white text-green-700 text-xs font-bold px-3 py-1 rounded-full"
+              >
+                View Resolving RWA →
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function Card({ children }) {
+  return <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4">{children}</div>
+}
+function CardTitle({ children }) {
+  return <div className="text-xs font-bold text-gray-400 uppercase tracking-wide">{children}</div>
+}
+
+// Full breakdown of every inspection item, grouped by category — expandable.
+function InspectionBreakdown({ itemResults }) {
+  const [openCat, setOpenCat] = useState(null)
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="px-4 py-3 border-b border-gray-100">
+        <CardTitle>Full Inspection Breakdown</CardTitle>
+      </div>
+      {CATEGORIES.map((cat) => {
+        const count = cat.items.length
+        const answered = cat.items.filter((i) => itemResults[i.code]?.resultCode).length
+        const fails = cat.items.filter((i) => itemResults[i.code]?.resultCode === 'fail_critical').length
+        const mons = cat.items.filter((i) => itemResults[i.code]?.resultCode === 'monitor').length
+        const isOpen = openCat === cat.code
+        return (
+          <div key={cat.code} className="border-b border-gray-100 last:border-0">
+            <button
+              onClick={() => setOpenCat(isOpen ? null : cat.code)}
+              className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-base">{cat.icon}</span>
+                <span className="text-sm font-semibold text-gray-800">{cat.label}</span>
+                <span className="text-xs text-gray-400">({answered}/{count})</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                {fails > 0 && <span className="text-red-600 font-bold">🚨 {fails}</span>}
+                {mons > 0 && <span className="text-amber-600 font-bold">⚠️ {mons}</span>}
+                <span className={`text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`}>▶</span>
+              </div>
+            </button>
+            {isOpen && (
+              <div className="px-4 pb-3 pt-1 space-y-1">
+                {cat.items.map((item) => {
+                  const r = itemResults[item.code] || {}
+                  const rc = r.resultCode || 'na'
+                  const label = rc === 'pass' ? 'Pass' : rc === 'monitor' ? 'Monitor' : rc === 'fail_critical' ? 'Critical' : rc === 'replaced' ? 'Replaced' : 'N/A'
+                  const tone =
+                    rc === 'pass' ? 'text-green-700'
+                    : rc === 'monitor' ? 'text-amber-700'
+                    : rc === 'fail_critical' ? 'text-red-700'
+                    : rc === 'replaced' ? 'text-blue-700'
+                    : 'text-gray-400'
+                  return (
+                    <div key={item.code} className="flex items-center justify-between text-xs py-0.5">
+                      <span className="text-gray-700 flex-1 pr-2">{item.label}</span>
+                      <span className={`font-semibold ${tone}`}>
+                        {label}
+                        {r.measuredValue !== undefined && r.measuredValue !== '' && ` · ${r.measuredValue}${item.unit || ''}`}
+                        {r.defectCode && ` · ${DEFECT_CODES[r.defectCode] || r.defectCode}`}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}

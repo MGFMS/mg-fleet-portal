@@ -1,0 +1,68 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── mg-fms collections (original) ────────────────────────────────────
+
+    // Assessments — any authenticated user can read and write
+    match /assessments/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // PMS records — any authenticated user can read and write
+    match /pms_records/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // User profiles — users can read their own; fleet managers can read/write all
+    match /users/{uid} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && (
+        request.auth.uid == uid ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "fleet_manager"
+      );
+    }
+
+    // ─── MG Fleet Portal collections (added 2026-04-21) ──────────────────
+
+    // Fleet companies — managed by portal admins. Everyone authed can read
+    // (needed so the booking form can list companies); any authed user can
+    // write (the UI gates writes to `is_admin: true` users).
+    match /fleetCompanies/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Pending invites — keyed by email. Admins create them, the invited user
+    // reads their own invite on sign-in completion, then the portal deletes it.
+    match /pendingInvites/{email} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Appointments = garage service bookings. Office staff + fleet customers
+    // both need access so customers can see bookings for their fleet.
+    match /appointments/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Service receipts + quotations (same collection, `kind` field distinguishes).
+    match /serviceReceipts/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Vehicle service-update timeline posts (the "Post Update" side panel).
+    match /vehicleServiceUpdates/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Notifications — cross-actor event feed. Any authed user can read/write;
+    // audience filtering happens client-side via branch/company/forAdmins fields.
+    match /notifications/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // ─── Default deny ─────────────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

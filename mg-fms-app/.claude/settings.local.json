@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx vite:*)",
+      "Bash(npx firebase:*)",
+      "Bash(npm run:*)",
+      "Bash(firebase deploy:*)",
+      "Bash(node:*)",
+      "Bash(npx firebase-tools:*)",
+      "Bash(firebase --version)",
+      "Bash(npm install:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
+    ]
+  }
+}
