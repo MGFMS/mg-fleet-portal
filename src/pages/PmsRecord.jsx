@@ -28,6 +28,7 @@ import {
   buildPmsUpdates, calcNextDue, loadPmsRecord, resolveCanonicalPlate,
   savePmsRecord,
 } from '../lib/pms'
+import PhotoCapture from '../components/PhotoCapture'
 
 const CATEGORY_TITLES = {
   scheduled: 'Scheduled Maintenance',
@@ -131,6 +132,7 @@ export default function PmsRecord() {
         nextDetails[pmsCode] = {
           brand: r.partReplaced || '',
           qty: r.partQty || 1,
+          photos: r.photos || [],
         }
         prov[pmsCode] = inspCode
       }
@@ -155,7 +157,7 @@ export default function PmsRecord() {
   const setDetail = (code, patch) => {
     setDetails((d) => ({
       ...d,
-      [code]: { ...(d[code] || { brand: '', qty: 1 }), ...patch },
+      [code]: { ...(d[code] || { brand: '', qty: 1, photos: [] }), ...patch },
     }))
   }
 
@@ -254,7 +256,7 @@ export default function PmsRecord() {
             key={item.code}
             item={item}
             checked={!!checked[item.code]}
-            detail={details[item.code] || { brand: '', qty: 1 }}
+            detail={details[item.code] || { brand: '', qty: 1, photos: [] }}
             existing={existing[item.code]}
             autoLinkedFrom={autoLinked[item.code] || null}
             odometer={odometer}
@@ -262,6 +264,7 @@ export default function PmsRecord() {
             onToggle={() => toggle(item.code)}
             onBrand={(v) => setDetail(item.code, { brand: v })}
             onQty={(n) => setDetail(item.code, { qty: Math.max(1, n) })}
+            onPhotos={(next) => setDetail(item.code, { photos: next })}
           />
         ))}
       </div>
@@ -300,7 +303,7 @@ function Field({ label, children }) {
   )
 }
 
-function PmsRow({ item, checked, detail, existing, autoLinkedFrom, odometer, date, onToggle, onBrand, onQty }) {
+function PmsRow({ item, checked, detail, existing, autoLinkedFrom, odometer, date, onToggle, onBrand, onQty, onPhotos }) {
   const { nextOdo, nextDate } = calcNextDue(odometer, date, item.kmInterval, item.monthInterval)
   return (
     <div className={`px-4 py-3 ${checked ? 'bg-green-50' : ''}`}>
@@ -342,24 +345,31 @@ function PmsRow({ item, checked, detail, existing, autoLinkedFrom, odometer, dat
         </div>
       </button>
       {checked && (
-        <div className="mt-2 ml-8 grid grid-cols-1 sm:grid-cols-[1fr_120px] gap-2 text-xs">
-          <label className="block">
-            <span className="block text-[10px] font-medium text-gray-500 mb-0.5">Part / Brand</span>
-            <input
-              value={detail.brand}
-              onChange={(e) => onBrand(e.target.value)}
-              className="input w-full"
-              placeholder="e.g. Metax 5W-40, Bosch filter"
-            />
-          </label>
-          <label className="block">
-            <span className="block text-[10px] font-medium text-gray-500 mb-0.5">Qty</span>
-            <div className="flex items-center gap-1">
-              <button type="button" onClick={() => onQty((detail.qty || 1) - 1)} className="w-7 h-7 bg-white border rounded font-bold">−</button>
-              <span className="w-8 text-center font-bold">{detail.qty || 1}</span>
-              <button type="button" onClick={() => onQty((detail.qty || 1) + 1)} className="w-7 h-7 bg-white border rounded font-bold">+</button>
-            </div>
-          </label>
+        <div className="mt-2 ml-8 space-y-3 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_120px] gap-2">
+            <label className="block">
+              <span className="block text-[10px] font-medium text-gray-500 mb-0.5">Part / Brand</span>
+              <input
+                value={detail.brand}
+                onChange={(e) => onBrand(e.target.value)}
+                className="input w-full"
+                placeholder="e.g. Metax 5W-40, Bosch filter"
+              />
+            </label>
+            <label className="block">
+              <span className="block text-[10px] font-medium text-gray-500 mb-0.5">Qty</span>
+              <div className="flex items-center gap-1">
+                <button type="button" onClick={() => onQty((detail.qty || 1) - 1)} className="w-7 h-7 bg-white border rounded font-bold">−</button>
+                <span className="w-8 text-center font-bold">{detail.qty || 1}</span>
+                <button type="button" onClick={() => onQty((detail.qty || 1) + 1)} className="w-7 h-7 bg-white border rounded font-bold">+</button>
+              </div>
+            </label>
+          </div>
+          <PhotoCapture
+            label="Service Photos"
+            photos={detail.photos || []}
+            onChange={onPhotos}
+          />
         </div>
       )}
     </div>

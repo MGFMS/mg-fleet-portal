@@ -21,6 +21,7 @@ import {
   calcHealthScore, getAction, healthColor,
 } from '../lib/mgfms-catalog'
 import { createAssessment, runEngine } from '../lib/assessments'
+import PhotoCapture from '../components/PhotoCapture'
 
 const RESULT_OPTIONS = ['pass', 'monitor', 'fail_critical', 'replaced', 'na']
 
@@ -363,6 +364,13 @@ function ItemRow({ item, result, setResult }) {
                   className="input w-full"
                 />
               </label>
+              <div className="sm:col-span-2">
+                <PhotoCapture
+                  label="Photos (before / new part / after)"
+                  photos={result.photos || []}
+                  onChange={(next) => setResult(item.code, { photos: next })}
+                />
+              </div>
             </>
           )}
           <label className="block sm:col-span-2">

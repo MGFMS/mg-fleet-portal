@@ -16,6 +16,7 @@ import { addDoc, collection, doc, getDoc, serverTimestamp, updateDoc } from 'fir
 import { auth, db } from './firebase'
 import { ALL_ITEMS } from './mgfms-catalog'
 import { emitNotification } from './notifications'
+import { trimPhotosToFit } from './photos'
 
 // Single-doc read by id. Returns the assessment doc + id, or null if missing.
 // Used by the PMS form to auto-link "replaced" inspection items into the
@@ -121,9 +122,11 @@ export async function createAssessment({ appointmentId, header, itemResults, pms
     createdBy: auth?.currentUser?.uid || null,
   }
 
+  // Trim photos if the doc exceeds ~900KB, so we stay under Firestore's 1MiB
+  // per-doc ceiling. mg-fms parity — see mg-fms-app/src/App.jsx:899.
   const ref = await addDoc(
     collection(db, 'assessments'),
-    sanitizeForFirestore(assessment),
+    sanitizeForFirestore(trimPhotosToFit(assessment)),
   )
 
   // Flip the appointment to DIAGNOSED so the pipeline stage advances. This is

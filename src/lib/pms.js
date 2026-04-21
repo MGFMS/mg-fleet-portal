@@ -27,6 +27,7 @@ import {
 } from 'firebase/firestore'
 import { auth, db } from './firebase'
 import { sanitizeForFirestore } from './assessments'
+import { trimPmsRecord } from './photos'
 
 export function normalizePlate(plate) {
   return String(plate || '').replace(/\s+/g, '').toUpperCase()
@@ -130,9 +131,12 @@ export async function savePmsRecord(canonicalPlate, updates) {
   if (!updates || Object.keys(updates).length === 0) {
     throw new Error('No PMS items selected.')
   }
+  // Trim photos if the merged update exceeds ~900KB; under Firestore's 1MiB
+  // ceiling. The trim only affects fields in THIS write — existing photos on
+  // other PMS codes stay because merge preserves them.
   await setDoc(
     doc(db, 'pms_records', canonicalPlate),
-    sanitizeForFirestore(updates),
+    sanitizeForFirestore(trimPmsRecord(updates)),
     { merge: true },
   )
   return { plate: canonicalPlate, count: Object.keys(updates).length, by: auth?.currentUser?.uid || null }
