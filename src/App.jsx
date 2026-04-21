@@ -22,6 +22,7 @@ import Reports from './pages/Reports'
 import ServiceBooking from './pages/ServiceBooking'
 import VehicleServiceUpdate from './pages/VehicleServiceUpdate'
 import AssessmentView from './pages/AssessmentView'
+import DiagnosticForm from './pages/DiagnosticForm'
 
 import Quotations from './pages/Quotations'
 import ServiceReceipts from './pages/ServiceReceipts'
@@ -60,7 +61,7 @@ export default function App() {
           {/* Appointments / Service Booking — both categories (fleet managers can book too) */}
           <Route path="/appointments"                element={<ProtectedRoute allowedCategories={BOTH}><ServiceBooking /></ProtectedRoute>} />
           <Route path="/appointments/:id/update"     element={<ProtectedRoute allowedCategories={INTERNAL}><VehicleServiceUpdate /></ProtectedRoute>} />
-          <Route path="/appointments/:id/diagnose"   element={<ProtectedRoute allowedCategories={INTERNAL}>{ph('Diagnostic', 'Create/edit a diagnostic for this appointment.')}</ProtectedRoute>} />
+          <Route path="/appointments/:id/diagnose"   element={<ProtectedRoute allowedCategories={INTERNAL}><DiagnosticForm /></ProtectedRoute>} />
           <Route path="/appointments/:id/assign"     element={<ProtectedRoute allowedCategories={INTERNAL}>{ph('Assign Mechanic', 'Assign or reassign the mechanic for this appointment.')}</ProtectedRoute>} />
 
           {/* Quotations */}

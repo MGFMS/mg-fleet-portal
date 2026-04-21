@@ -1,0 +1,387 @@
+// Diagnostic / inspection form for /appointments/:id/diagnose. Ported from
+// mg-fms-app/src/App.jsx (InspectScreen + submit flow), rebuilt to live inside
+// the portal's layout and to write to the SAME `assessments` collection
+// mg-fms uses. On submit: writes the assessment doc, flips the parent
+// appointment to DIAGNOSED, navigates to /assessments/{rwaNumber}.
+//
+// Deliberately OUT OF SCOPE for this first port (follow-on work):
+//   - photo capture / compression / base64 storage
+//   - PMS sub-flow (31 items, next-due calc, parts/brand details)
+//   - Quick Fix and full Re-Assessment flows
+//   - Supervisor override
+//   - Draft persistence to localStorage
+
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import { fetchContextDoc } from '../lib/notifications'
+import { watchVehicles } from '../lib/vehicles'
+import {
+  ACTION_CFG, CATEGORIES, DEFECT_CODES, RC, SC,
+  calcHealthScore, getAction, healthColor,
+} from '../lib/mgfms-catalog'
+import { createAssessment, runEngine } from '../lib/assessments'
+
+const RESULT_OPTIONS = ['pass', 'monitor', 'fail_critical', 'replaced', 'na']
+
+export default function DiagnosticForm() {
+  const { id: appointmentId } = useParams()
+  const navigate = useNavigate()
+  const { profile } = useAuth()
+
+  const [appointment, setAppointment] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [vehicles, setVehicles] = useState([])
+
+  const [header, setHeader] = useState({
+    plate: '', make: '', model: '', yearModel: '',
+    client: '', branch: '', technician: '', odometer: '',
+    type: 'New Assessment', date: new Date().toISOString().slice(0, 10),
+  })
+  const [itemResults, setItemResults] = useState({})
+  const [openCat, setOpenCat] = useState(CATEGORIES[0]?.code || null)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
+
+  // Load the parent appointment + vehicle registry in parallel. Only fires
+  // once per appointmentId — `profile` is captured at first load so later
+  // profile updates don't clobber the user's edits.
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    fetchContextDoc('appointments', appointmentId).then((appt) => {
+      if (cancelled) return
+      setAppointment(appt)
+      setHeader((h) => ({
+        ...h,
+        plate: appt?.plateNo || '',
+        branch: appt?.branch || profile?.branch || '',
+        client: appt?.company || '',
+        technician: appt?.mechanic && appt.mechanic !== 'Not yet assigned'
+          ? appt.mechanic
+          : (profile?.user_fullname || profile?.displayName || ''),
+      }))
+      setLoading(false)
+    })
+    const unsub = watchVehicles({}, ({ vehicles: rows }) => {
+      if (!cancelled) setVehicles(rows || [])
+    })
+    return () => { cancelled = true; unsub?.() }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appointmentId])
+
+  // If the plate matches a registered vehicle, prefill make/model/year/odometer
+  // on first match. Runs only when the vehicle list arrives AFTER the header
+  // settles, and only fills empty fields so manual edits aren't clobbered.
+  useEffect(() => {
+    if (!header.plate || vehicles.length === 0) return
+    const v = vehicles.find((x) => x.plateNo === header.plate)
+    if (!v) return
+    setHeader((h) => ({
+      ...h,
+      make: h.make || v.brand || '',
+      model: h.model || v.model || '',
+      yearModel: h.yearModel || v.yearModel || '',
+      client: h.client || v.company || '',
+      odometer: h.odometer || (v.latestOdo ? String(v.latestOdo) : ''),
+    }))
+  }, [header.plate, vehicles])
+
+  // Live classification + score. Recomputed on every itemResult change.
+  const classification = useMemo(() => runEngine(itemResults), [itemResults])
+  const score = useMemo(
+    () => calcHealthScore(classification, itemResults),
+    [classification, itemResults],
+  )
+  const sc = SC[classification.overallStatus] || SC.active
+  const hc = healthColor(score)
+
+  const answered = useMemo(
+    () => Object.values(itemResults).filter((r) => r?.resultCode && r.resultCode !== 'na').length,
+    [itemResults],
+  )
+  const totalItems = useMemo(
+    () => CATEGORIES.reduce((n, c) => n + c.items.length, 0),
+    [],
+  )
+
+  const setResult = (code, patch) => {
+    setItemResults((prev) => ({
+      ...prev,
+      [code]: { ...(prev[code] || {}), ...patch },
+    }))
+  }
+
+  const canSubmit = answered > 0 && header.plate && header.technician && !saving
+
+  const onSubmit = async () => {
+    if (!canSubmit) return
+    setSaving(true); setError(null)
+    try {
+      const { rwaNumber } = await createAssessment({
+        appointmentId,
+        header: {
+          ...header,
+          odometer: header.odometer ? Number(header.odometer) : null,
+        },
+        itemResults,
+      })
+      navigate(`/assessments/${rwaNumber}`)
+    } catch (err) {
+      console.error('[diagnostic] createAssessment failed', err)
+      setError(err.message || String(err))
+      setSaving(false)
+    }
+  }
+
+  if (loading) return <div className="p-6 text-sm text-gray-500">Loading appointment…</div>
+
+  return (
+    <div className="pb-24">
+      <div className="p-4 flex items-center justify-between">
+        <button onClick={() => navigate(-1)} className="text-sm text-gray-500 hover:underline">← Back</button>
+        {appointment ? (
+          <div className="text-xs text-gray-500">
+            Appt <span className="font-mono">{appointmentId.slice(0, 6)}</span> · {appointment.status}
+          </div>
+        ) : (
+          <div className="text-xs text-amber-700">Appointment not found — you can still file a standalone assessment.</div>
+        )}
+      </div>
+
+      {/* ── Live status banner ───────────────────────────────────── */}
+      <div className={`bg-gradient-to-b ${sc.grad} text-white mx-4 rounded-2xl p-4 flex items-center gap-4`}>
+        <div className="flex-1">
+          <div className="text-[10px] tracking-widest opacity-70 font-bold">LIVE CLASSIFICATION</div>
+          <div className="text-lg font-black">{sc.label}</div>
+          <div className="text-xs opacity-80 mt-0.5">
+            {answered}/{totalItems} items · {classification.failCriticalCount} critical · {classification.monitorCount} monitor
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-[10px] opacity-70 font-bold">HEALTH</div>
+          <div className={`text-3xl font-black bg-white rounded-lg px-3 ${hc.text}`}>{score}</div>
+        </div>
+      </div>
+
+      {/* ── Vehicle & header ─────────────────────────────────────── */}
+      <div className="m-4 bg-white border rounded-xl p-4">
+        <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-3">Vehicle & Header</div>
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <Field label="Plate">
+            <input value={header.plate} onChange={(e) => setHeader((h) => ({ ...h, plate: e.target.value.toUpperCase() }))} className="input w-full uppercase" />
+          </Field>
+          <Field label="Date">
+            <input type="date" value={header.date} onChange={(e) => setHeader((h) => ({ ...h, date: e.target.value }))} className="input w-full" />
+          </Field>
+          <Field label="Make"><input value={header.make} onChange={(e) => setHeader((h) => ({ ...h, make: e.target.value }))} className="input w-full" /></Field>
+          <Field label="Model"><input value={header.model} onChange={(e) => setHeader((h) => ({ ...h, model: e.target.value }))} className="input w-full" /></Field>
+          <Field label="Year"><input value={header.yearModel} onChange={(e) => setHeader((h) => ({ ...h, yearModel: e.target.value }))} className="input w-full" /></Field>
+          <Field label="Odometer (km)"><input type="number" value={header.odometer} onChange={(e) => setHeader((h) => ({ ...h, odometer: e.target.value }))} className="input w-full" /></Field>
+          <Field label="Client / Fleet"><input value={header.client} onChange={(e) => setHeader((h) => ({ ...h, client: e.target.value }))} className="input w-full" /></Field>
+          <Field label="Branch"><input value={header.branch} onChange={(e) => setHeader((h) => ({ ...h, branch: e.target.value }))} className="input w-full" /></Field>
+          <Field label="Technician"><input value={header.technician} onChange={(e) => setHeader((h) => ({ ...h, technician: e.target.value }))} className="input w-full" /></Field>
+          <Field label="Type">
+            <select value={header.type} onChange={(e) => setHeader((h) => ({ ...h, type: e.target.value }))} className="input w-full">
+              <option>New Assessment</option>
+              <option>Re-Assessment</option>
+              <option>Quick Fix</option>
+            </select>
+          </Field>
+        </div>
+      </div>
+
+      {/* ── Inspection categories ───────────────────────────────── */}
+      <div className="mx-4 space-y-2">
+        {CATEGORIES.map((cat) => (
+          <CategoryBlock
+            key={cat.code}
+            cat={cat}
+            open={openCat === cat.code}
+            onToggle={() => setOpenCat(openCat === cat.code ? null : cat.code)}
+            itemResults={itemResults}
+            setResult={setResult}
+          />
+        ))}
+      </div>
+
+      {/* ── Sticky submit bar ───────────────────────────────────── */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t px-4 py-3 flex items-center gap-3">
+        {error && <div className="text-xs text-red-700 flex-1 truncate">Save failed: {error}</div>}
+        <div className={`text-xs flex-1 ${error ? 'hidden' : ''}`}>
+          {answered === 0 ? (
+            <span className="text-gray-500">Fill in at least one item to enable submit.</span>
+          ) : (
+            <span className="text-gray-700">
+              {answered}/{totalItems} items rated · preview: <span className="font-semibold">{sc.label}</span>
+              {!classification.dispatchAllowed && <span className="text-red-700 font-semibold"> · ⛔ hold</span>}
+            </span>
+          )}
+        </div>
+        <button
+          onClick={onSubmit}
+          disabled={!canSubmit}
+          className="bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white font-semibold text-sm px-5 py-2 rounded-md"
+        >
+          {saving ? 'Submitting…' : 'Submit Assessment'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function Field({ label, children }) {
+  return (
+    <label className="block">
+      <span className="block text-[11px] font-medium text-gray-500 mb-0.5">{label}</span>
+      {children}
+    </label>
+  )
+}
+
+function CategoryBlock({ cat, open, onToggle, itemResults, setResult }) {
+  const fails = cat.items.filter((i) => itemResults[i.code]?.resultCode === 'fail_critical').length
+  const mons = cat.items.filter((i) => itemResults[i.code]?.resultCode === 'monitor').length
+  const answered = cat.items.filter((i) => itemResults[i.code]?.resultCode).length
+  return (
+    <div className="bg-white border rounded-xl overflow-hidden">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-lg">{cat.icon}</span>
+          <span className="font-semibold text-sm text-gray-800">{cat.label}</span>
+          <span className="text-xs text-gray-400">({answered}/{cat.items.length})</span>
+        </div>
+        <div className="flex items-center gap-2 text-xs">
+          {fails > 0 && <span className="text-red-600 font-bold">🚨 {fails}</span>}
+          {mons > 0 && <span className="text-amber-600 font-bold">⚠ {mons}</span>}
+          <span className={`text-gray-400 transition-transform ${open ? 'rotate-90' : ''}`}>▶</span>
+        </div>
+      </button>
+      {open && (
+        <div className="border-t divide-y">
+          {cat.items.map((item) => (
+            <ItemRow key={item.code} item={item} result={itemResults[item.code] || {}} setResult={setResult} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ItemRow({ item, result, setResult }) {
+  const action = getAction(item, result.resultCode)
+  const actionCfg = ACTION_CFG[action]
+  const showDefect = result.resultCode === 'fail_critical' || result.resultCode === 'monitor'
+  const showMeasure = item.type === 'measurable'
+  const showPart = result.resultCode === 'replaced'
+
+  return (
+    <div className="px-4 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium text-gray-800">
+            {item.label}
+            {item.isCritical && <span className="ml-1 text-[10px] text-red-600 font-semibold">CRITICAL</span>}
+            {item.holdUnit && <span className="ml-1 text-[10px] text-red-900 font-semibold">HOLD</span>}
+            {item.isCompliance && <span className="ml-1 text-[10px] text-blue-600 font-semibold">COMPLIANCE</span>}
+          </div>
+          {item.thresholdLabel && (
+            <div className="text-[11px] text-gray-500 mt-0.5">{item.thresholdLabel}</div>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-1 justify-end">
+          {RESULT_OPTIONS.map((rc) => {
+            const active = result.resultCode === rc
+            const cfg = RC[rc]
+            return (
+              <button
+                key={rc}
+                type="button"
+                onClick={() => setResult(item.code, { resultCode: active ? undefined : rc })}
+                className={`text-[11px] px-2 py-1 rounded font-semibold transition ${active ? `${cfg.bg} text-white` : `${cfg.light} hover:opacity-80`}`}
+              >
+                {cfg.icon} {cfg.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {(showDefect || showMeasure || showPart) && (
+        <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+          {showMeasure && (
+            <label className="block">
+              <span className="block text-[10px] font-medium text-gray-500 mb-0.5">
+                Measured {item.unit ? `(${item.unit})` : ''}
+              </span>
+              <input
+                type="number"
+                step="0.01"
+                value={result.measuredValue ?? ''}
+                onChange={(e) => setResult(item.code, { measuredValue: e.target.value })}
+                className="input w-full"
+                placeholder={item.threshold != null ? `min ${item.threshold}` : ''}
+              />
+            </label>
+          )}
+          {showDefect && (
+            <label className="block">
+              <span className="block text-[10px] font-medium text-gray-500 mb-0.5">Defect</span>
+              <select
+                value={result.defectCode || ''}
+                onChange={(e) => setResult(item.code, { defectCode: e.target.value || undefined })}
+                className="input w-full"
+              >
+                <option value="">— select —</option>
+                {Object.entries(DEFECT_CODES).map(([k, v]) => (
+                  <option key={k} value={k}>{v}</option>
+                ))}
+              </select>
+            </label>
+          )}
+          {showPart && (
+            <>
+              <label className="block">
+                <span className="block text-[10px] font-medium text-gray-500 mb-0.5">Part Replaced</span>
+                <input
+                  value={result.partReplaced || ''}
+                  onChange={(e) => setResult(item.code, { partReplaced: e.target.value })}
+                  className="input w-full"
+                  placeholder="Brand / description"
+                />
+              </label>
+              <label className="block">
+                <span className="block text-[10px] font-medium text-gray-500 mb-0.5">Qty</span>
+                <input
+                  type="number" min="1"
+                  value={result.partQty || 1}
+                  onChange={(e) => setResult(item.code, { partQty: Number(e.target.value) || 1 })}
+                  className="input w-full"
+                />
+              </label>
+            </>
+          )}
+          <label className="block sm:col-span-2">
+            <span className="block text-[10px] font-medium text-gray-500 mb-0.5">Note</span>
+            <input
+              value={result.note || ''}
+              onChange={(e) => setResult(item.code, { note: e.target.value })}
+              className="input w-full"
+              placeholder="Optional remarks"
+            />
+          </label>
+        </div>
+      )}
+
+      {result.resultCode && action !== 'NONE' && (
+        <div className={`mt-2 inline-block text-[10px] font-semibold px-2 py-0.5 rounded ${actionCfg.bg} ${actionCfg.color}`}>
+          {actionCfg.label}
+        </div>
+      )}
+    </div>
+  )
+}
