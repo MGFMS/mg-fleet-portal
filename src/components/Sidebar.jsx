@@ -94,11 +94,15 @@ export default function Sidebar({ drawerOpen = false, onClose }) {
   // Admins always get the full internal sidebar regardless of their role.
   const customerView = isCustomer(role) && !profile?.is_admin
 
+  // Belt-and-suspenders: translate-x AND display:hidden when closed on
+  // mobile. If the transform gets squelched by a browser quirk or a
+  // z-stacking glitch, `hidden` still keeps it out of the DOM paint. On
+  // md+ it's always a static column regardless of drawerOpen.
   const shellClasses =
     'fixed inset-y-0 left-0 z-40 w-64 bg-sidebar text-sidebar-text ' +
     'overflow-y-auto flex flex-col transform transition-transform duration-200 ease-out ' +
-    'md:static md:translate-x-0 md:w-60 md:h-full md:z-auto ' +
-    (drawerOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0')
+    'md:static md:translate-x-0 md:w-60 md:h-full md:z-auto md:flex ' +
+    (drawerOpen ? 'flex translate-x-0' : 'hidden -translate-x-full md:translate-x-0')
 
   // Close the drawer when any link inside it is tapped. Relying on
   // pathname-change alone wasn't enough — tapping a Quick Link that points
