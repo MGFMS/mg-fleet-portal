@@ -71,17 +71,17 @@ export default function VehicleServiceUpdate() {
     }))
   }, [updates])
 
-  if (!appt) return <div className="p-6 text-gray-500">Loading…</div>
+  if (!appt) return <div className="p-4 sm:p-6 text-gray-500">Loading…</div>
 
   return (
     <div className="fixed inset-0 bg-black/40 z-40 flex justify-end">
       <aside className="w-[460px] max-w-full bg-white h-full flex flex-col shadow-xl">
-        <div className="flex items-center justify-between px-5 py-3 border-b">
-          <div className="font-semibold text-gray-800">Post message for {appt.plateNo}</div>
-          <button onClick={() => navigate(-1)} className="text-gray-500 hover:text-gray-800 text-xl leading-none">×</button>
+        <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b">
+          <div className="font-semibold text-gray-800 truncate pr-2">Post message for {appt.plateNo}</div>
+          <button onClick={() => navigate(-1)} className="text-gray-500 hover:text-gray-800 text-xl leading-none shrink-0 w-8 h-8 flex items-center justify-center" aria-label="Close">×</button>
         </div>
 
-        <form onSubmit={submit} className="flex-1 overflow-auto p-5 space-y-4 text-sm">
+        <form onSubmit={submit} className="flex-1 overflow-auto p-4 sm:p-5 space-y-4 text-sm">
           <div>
             <div className="text-xs text-gray-500 mb-1">Current Status</div>
             <StatusPill status={appt.status} />
@@ -141,7 +141,7 @@ export default function VehicleServiceUpdate() {
           )}
         </form>
 
-        <div className="border-t px-5 py-3 bg-gray-900">
+        <div className="border-t px-4 sm:px-5 py-3 bg-gray-900">
           <button type="button" onClick={submit} disabled={saving} className="w-full bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white py-2 rounded text-sm font-semibold">
             {saving ? 'Submitting…' : 'Submit'}
           </button>

@@ -210,9 +210,9 @@ export default function PmsRecord() {
       </div>
 
       {/* ── Header ───────────────────────────────────────────────── */}
-      <div className="m-4 bg-white border rounded-xl p-4">
+      <div className="m-3 sm:m-4 bg-white border rounded-xl p-3 sm:p-4">
         <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-3">PMS Context</div>
-        <div className="grid grid-cols-2 gap-3 text-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
           <Field label="Plate">
             <input value={plate} onChange={(e) => setPlate(e.target.value.toUpperCase())} className="input w-full uppercase" />
             {canonicalPlate && canonicalPlate !== plate && (
@@ -232,7 +232,7 @@ export default function PmsRecord() {
       </div>
 
       {/* ── Category tabs ────────────────────────────────────────── */}
-      <div className="mx-4 flex gap-1 mb-2 overflow-x-auto">
+      <div className="mx-3 sm:mx-4 flex gap-1 mb-2 overflow-x-auto">
         {ITEMS_BY_CAT.map((g) => {
           const sel = g.items.filter((i) => checked[i.code]).length
           const active = activeCat === g.cat
@@ -250,7 +250,7 @@ export default function PmsRecord() {
       </div>
 
       {/* ── Items ────────────────────────────────────────────────── */}
-      <div className="mx-4 bg-white border rounded-xl divide-y">
+      <div className="mx-3 sm:mx-4 bg-white border rounded-xl divide-y">
         {(ITEMS_BY_CAT.find((g) => g.cat === activeCat)?.items || []).map((item) => (
           <PmsRow
             key={item.code}

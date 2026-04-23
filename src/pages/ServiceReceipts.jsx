@@ -58,7 +58,7 @@ export default function ServiceReceipts() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
+          <table className="min-w-full text-sm whitespace-nowrap">
             <thead className="bg-gray-50 text-xs uppercase tracking-wider text-gray-600">
               <tr>
                 <th className="px-4 py-3 text-left font-medium">Code</th>
@@ -101,8 +101,8 @@ export default function ServiceReceipts() {
           </table>
         </div>
 
-        <div className="flex items-center justify-between px-4 py-3 border-t text-sm text-gray-600">
-          <div>Showing 1 to {Math.min(filtered.length, pageSize)} of {filtered.length} entries</div>
+        <div className="flex items-center justify-between px-3 sm:px-4 py-3 border-t text-sm text-gray-600 gap-2 flex-wrap">
+          <div className="text-xs sm:text-sm">Showing 1 to {Math.min(filtered.length, pageSize)} of {filtered.length} entries</div>
           <div className="flex items-center gap-2">
             <button className="px-3 py-1 border rounded">Previous</button>
             <span className="px-2 py-1 bg-brand text-white rounded">1</span>
@@ -111,9 +111,9 @@ export default function ServiceReceipts() {
         </div>
       </div>
 
-      <div className="fixed bottom-6 right-6 flex items-center gap-3">
-        <div className="bg-gray-900 text-white px-3 py-2 rounded text-xs flex items-center gap-2">
-          <span className="text-gray-400">Filter Status</span>
+      <div className="fixed bottom-4 sm:bottom-6 right-4 sm:right-6 flex items-center gap-2 sm:gap-3 flex-wrap justify-end max-w-[calc(100vw-2rem)]">
+        <div className="bg-gray-900 text-white px-3 py-2 rounded text-xs flex items-center gap-2 shadow-lg">
+          <span className="text-gray-400 hidden sm:inline">Filter Status</span>
           <select value={status} onChange={(e) => setStatus(e.target.value)} className="bg-transparent text-white text-xs">
             <option value="ALL">ALL</option>
             <option value="OPEN">OPEN</option>
@@ -121,9 +121,10 @@ export default function ServiceReceipts() {
             <option value="CANCELLED">CANCELLED</option>
           </select>
         </div>
-        <Link to="/service-receipts/create" className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-semibold text-sm flex items-center gap-1.5">
+        <Link to="/service-receipts/create" className="bg-green-600 hover:bg-green-700 text-white px-3 sm:px-4 py-2 rounded font-semibold text-sm flex items-center gap-1.5 shadow-lg">
           <Icon name="plus" className="w-4 h-4" />
-          Create SERVICE RECEIPT
+          <span className="hidden sm:inline">Create SERVICE RECEIPT</span>
+          <span className="sm:hidden">Create</span>
         </Link>
       </div>
     </div>

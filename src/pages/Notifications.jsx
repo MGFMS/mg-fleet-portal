@@ -57,16 +57,19 @@ export default function Notifications() {
   }
 
   return (
-    <div className="p-4 sm:p-6 pb-20">
-      <div className="flex items-center justify-between mb-4 gap-2">
+    <div className="p-3 sm:p-6 pb-20">
+      <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
         <h1 className="text-xl sm:text-2xl font-semibold text-gray-800">Notifications</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 shrink-0">
+          <span className="text-xs sm:text-sm text-gray-500">{unread} unread</span>
           {unread > 0 && (
-            <button onClick={markAll} className="text-xs text-brand hover:underline">
+            <button
+              onClick={markAll}
+              className="text-xs bg-brand hover:bg-brand-dark text-white px-3 py-1.5 rounded-md font-semibold"
+            >
               Mark all read
             </button>
           )}
-          <span className="text-sm text-gray-500">{unread} unread</span>
         </div>
       </div>
 
@@ -89,19 +92,19 @@ export default function Notifications() {
             <button
               key={n.id}
               onClick={() => open(n)}
-              className={`w-full text-left flex items-start gap-3 px-4 py-3 hover:bg-gray-50 ${n.read ? 'bg-white' : 'bg-sky-50/40'}`}
+              className={`w-full text-left flex items-start gap-3 px-3 sm:px-4 py-3 hover:bg-gray-50 ${n.read ? 'bg-white' : 'bg-sky-50/40'}`}
             >
               <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${ico.tone}`}>
                 <Icon name={ico.name} className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className={`text-sm ${n.read ? 'text-gray-700' : 'font-semibold text-gray-900'}`}>
+                <div className={`text-sm leading-snug break-words ${n.read ? 'text-gray-700' : 'font-semibold text-gray-900'}`}>
                   {n.title}
                 </div>
                 {n.body && (
-                  <div className="text-xs text-gray-500 mt-0.5 truncate">{n.body}</div>
+                  <div className="text-xs text-gray-500 mt-0.5 break-words line-clamp-2">{n.body}</div>
                 )}
-                <div className="text-xs text-gray-400 mt-0.5">{timeAgo(n.createdAt)}</div>
+                <div className="text-[11px] text-gray-400 mt-1">{timeAgo(n.createdAt)}</div>
               </div>
               {!n.read && <span className="w-2 h-2 rounded-full bg-brand mt-2 shrink-0" />}
             </button>

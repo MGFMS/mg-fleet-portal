@@ -70,7 +70,7 @@ export default function Quotations({ unbilledOnly = false, customerView: custome
       </div>
 
       <div className="bg-white rounded-md border">
-        <div className="flex items-center justify-between px-4 py-3 border-b gap-4">
+        <div className="flex items-center justify-between px-3 sm:px-4 py-3 border-b gap-2 flex-wrap">
           <select value={status} onChange={(e) => setStatus(e.target.value)} className="border rounded px-2 py-1 text-sm">
             <option value="ALL">All statuses</option>
             <option value="OPEN">OPEN</option>
@@ -79,11 +79,11 @@ export default function Quotations({ unbilledOnly = false, customerView: custome
             <option value="PAID">PAID</option>
             <option value="CANCELLED">CANCELLED</option>
           </select>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search code, plate, customer..." className="border rounded px-2 py-1 text-sm w-64" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search code, plate, customer..." className="border rounded px-2 py-1 text-sm w-full sm:w-64" />
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
+          <table className="min-w-full text-sm whitespace-nowrap">
             <thead className="bg-gray-50 text-xs uppercase tracking-wider text-gray-600">
               <tr>
                 <th className="px-4 py-3 text-left font-medium">Code</th>
@@ -126,10 +126,11 @@ export default function Quotations({ unbilledOnly = false, customerView: custome
       </div>
 
       {!customerView && (
-        <div className="fixed bottom-6 right-6">
-          <Link to="/quotations/create" className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-semibold text-sm flex items-center gap-1.5 shadow-lg">
+        <div className="fixed bottom-4 sm:bottom-6 right-4 sm:right-6">
+          <Link to="/quotations/create" className="bg-green-600 hover:bg-green-700 text-white px-3 sm:px-4 py-2 rounded font-semibold text-sm flex items-center gap-1.5 shadow-lg">
             <Icon name="plus" className="w-4 h-4" />
-            Create QUOTATION
+            <span className="hidden sm:inline">Create QUOTATION</span>
+            <span className="sm:hidden">Create</span>
           </Link>
         </div>
       )}

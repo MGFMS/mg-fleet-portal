@@ -43,22 +43,23 @@ export default function Customers() {
             </select>
             <span className="text-xs text-gray-500">{rows.length} records</span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search name, phone, company..."
-              className="border rounded px-2 py-1 text-sm w-64"
+              className="border rounded px-2 py-1 text-sm w-full sm:w-64"
             />
-            <button className="bg-brand hover:bg-brand-dark text-white px-3 py-1.5 rounded text-sm font-semibold flex items-center gap-1">
+            <button className="bg-brand hover:bg-brand-dark text-white px-3 py-1.5 rounded text-sm font-semibold flex items-center gap-1 shrink-0">
               <Icon name="plus" className="w-4 h-4" />
-              Add Customer
+              <span className="hidden sm:inline">Add Customer</span>
+              <span className="sm:hidden">Add</span>
             </button>
           </div>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
+          <table className="min-w-full text-sm whitespace-nowrap">
             <thead className="bg-gray-50 text-xs uppercase tracking-wider text-gray-600">
               <tr>
                 <th className="px-4 py-3 text-left font-medium">Name</th>

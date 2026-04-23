@@ -61,7 +61,7 @@ export default function ServiceReceiptDetails() {
 
       <div className="bg-white rounded-md border overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
+          <table className="min-w-full text-sm whitespace-nowrap">
             <thead className="bg-gray-50 text-xs uppercase tracking-wider text-gray-600">
               <tr>
                 <th className="px-4 py-3 text-left font-medium">Type</th>
@@ -86,16 +86,16 @@ export default function ServiceReceiptDetails() {
         </div>
       </div>
 
-      <div className="flex justify-end">
-        <div className="text-sm text-right space-y-1">
+      <div className="flex justify-start sm:justify-end">
+        <div className="w-full sm:w-auto text-sm text-right space-y-1">
           <div>Labor:     <span className="inline-block w-28 text-right font-semibold">{formatMoney(receipt.laborTotal)}</span></div>
           <div>Materials: <span className="inline-block w-28 text-right font-semibold">{formatMoney(receipt.materialsTotal)}</span></div>
-          <div className="text-base mt-2">
-            Estimated Total (Labor + Materials/Parts):{' '}
+          <div className="text-base mt-2 flex flex-col sm:block items-end">
+            <span className="text-xs sm:text-base text-gray-600">Estimated Total (Labor + Materials/Parts):</span>{' '}
             <span className="text-2xl font-bold text-green-700">{formatMoney(receipt.estimatedTotal)}</span>
           </div>
-          <div className="mt-3 flex justify-end gap-2">
-            <button className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded text-sm flex items-center gap-1">
+          <div className="mt-3 flex flex-col sm:flex-row justify-end gap-2">
+            <button className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded text-sm flex items-center justify-center gap-1">
               <Icon name="print" className="w-4 h-4" />
               Print
             </button>

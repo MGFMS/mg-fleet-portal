@@ -16,19 +16,19 @@ export default function StatCard({ label, value, tone = 'dark', icon, small = fa
   if (compact) {
     // one-line dense variant used in the PM row
     return (
-      <div className={`${t.card} rounded-md px-5 py-3 flex items-center justify-between`}>
-        <span className="text-xs font-semibold tracking-wider">{label}</span>
-        <span className="text-2xl font-bold">{value}</span>
+      <div className={`${t.card} rounded-md px-3 sm:px-5 py-3 flex items-center justify-between gap-2`}>
+        <span className="text-[11px] sm:text-xs font-semibold tracking-wider leading-tight">{label}</span>
+        <span className="text-xl sm:text-2xl font-bold shrink-0">{value}</span>
       </div>
     )
   }
   return (
-    <div className={`${t.card} rounded-md px-5 py-4 flex items-center justify-between`}>
-      <div className="flex items-center gap-3">
-        {icon && <span className="opacity-80">{icon}</span>}
-        <span className={`${small ? 'text-xs' : 'text-sm'} font-medium leading-tight`}>{label}</span>
+    <div className={`${t.card} rounded-md px-3 sm:px-5 py-3 sm:py-4 flex items-center justify-between gap-2`}>
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        {icon && <span className="opacity-80 shrink-0">{icon}</span>}
+        <span className={`${small ? 'text-[11px] sm:text-xs' : 'text-xs sm:text-sm'} font-medium leading-tight`}>{label}</span>
       </div>
-      <span className={`${t.value} ${small ? 'text-2xl' : 'text-3xl'} font-bold`}>{value}</span>
+      <span className={`${t.value} ${small ? 'text-xl sm:text-2xl' : 'text-2xl sm:text-3xl'} font-bold shrink-0`}>{value}</span>
     </div>
   )
 }

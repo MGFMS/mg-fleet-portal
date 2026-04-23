@@ -57,7 +57,7 @@ export default function MyMechanics() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
+          <table className="min-w-full text-sm whitespace-nowrap">
             <thead className="bg-gray-50 text-xs uppercase tracking-wider text-gray-600">
               <tr>
                 <th className="px-4 py-2 text-left font-medium">Type</th>

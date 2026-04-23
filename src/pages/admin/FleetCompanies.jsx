@@ -138,7 +138,7 @@ export default function FleetCompanies() {
       </div>
 
       {editingId !== null && (
-        <form onSubmit={submit} className="bg-white rounded-lg shadow-sm border p-5 mb-4">
+        <form onSubmit={submit} className="bg-white rounded-lg shadow-sm border p-4 sm:p-5 mb-4">
           <div className="text-sm font-semibold text-gray-700 mb-3">
             {editingId === 'new' ? 'Add new fleet company' : 'Edit fleet company'}
           </div>
@@ -150,7 +150,7 @@ export default function FleetCompanies() {
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 placeholder="e.g. Purefoods Corporation"
                 required
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:border-brand focus:outline-none"
+                className="input"
               />
             </Field>
             <Field label="Company code *" hint="Short uppercase ID used internally.">
@@ -160,7 +160,7 @@ export default function FleetCompanies() {
                 onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
                 placeholder="e.g. PUREFOODS"
                 required
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm font-mono uppercase focus:border-brand focus:outline-none"
+                className="input font-mono uppercase"
               />
             </Field>
             <Field label="Contact email">
@@ -169,7 +169,7 @@ export default function FleetCompanies() {
                 value={form.contactEmail}
                 onChange={(e) => setForm({ ...form, contactEmail: e.target.value })}
                 placeholder="contact@company.com"
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:border-brand focus:outline-none"
+                className="input"
               />
             </Field>
             <Field label="Contact phone">
@@ -178,7 +178,7 @@ export default function FleetCompanies() {
                 value={form.contactPhone}
                 onChange={(e) => setForm({ ...form, contactPhone: e.target.value })}
                 placeholder="+63 ..."
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:border-brand focus:outline-none"
+                className="input"
               />
             </Field>
           </div>
@@ -195,7 +195,7 @@ export default function FleetCompanies() {
             <div className="mt-3 text-sm text-red-600">Save failed: {saveError}</div>
           )}
 
-          <div className="mt-4 flex gap-2">
+          <div className="mt-4 flex flex-col sm:flex-row gap-2">
             <button
               type="submit"
               disabled={saving}

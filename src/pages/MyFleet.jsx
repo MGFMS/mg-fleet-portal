@@ -130,7 +130,7 @@ function FleetTable({ vehicles, loading }) {
 
   return (
     <div className="bg-white rounded-md shadow-sm border">
-      <div className="flex items-center justify-between px-4 py-3 border-b">
+      <div className="flex items-center justify-between px-3 sm:px-4 py-3 border-b gap-2 flex-wrap">
         <div className="text-sm text-gray-600">
           Show{' '}
           <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1) }} className="border rounded px-2 py-1 mx-1 text-sm">
@@ -138,14 +138,14 @@ function FleetTable({ vehicles, loading }) {
           </select>
           entries
         </div>
-        <div className="text-sm text-gray-600">
-          Search:{' '}
-          <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} className="border rounded px-2 py-1 text-sm ml-1" />
+        <div className="text-sm text-gray-600 flex items-center gap-1">
+          <span>Search:</span>
+          <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} className="border rounded px-2 py-1 text-sm w-full sm:w-auto" />
         </div>
       </div>
 
       <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
+        <table className="min-w-full text-sm whitespace-nowrap">
           <thead className="bg-gray-50 border-b">
             <tr>
               <Th label="Plate No"        field="plateNo"        sort={sort} setSort={setSort} />

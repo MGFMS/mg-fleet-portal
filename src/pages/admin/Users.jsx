@@ -149,7 +149,7 @@ export default function Users() {
       {saveErr && <Banner kind="err">{saveErr}</Banner>}
 
       {mode !== null && (
-        <form onSubmit={submit} className="bg-white rounded-lg shadow-sm border p-5 mb-4 space-y-4">
+        <form onSubmit={submit} className="bg-white rounded-lg shadow-sm border p-4 sm:p-5 mb-4 space-y-4">
           <div className="text-sm font-semibold text-gray-700">
             {mode === 'invite' ? 'Invite new user' : 'Edit user'}
           </div>
@@ -219,7 +219,7 @@ export default function Users() {
             </div>
           )}
 
-          <div className="flex gap-2 pt-1">
+          <div className="flex flex-col sm:flex-row gap-2 pt-1">
             <button type="submit" disabled={saving} className="bg-brand hover:bg-brand-dark disabled:opacity-50 text-white px-4 py-2 rounded-md text-sm font-medium">
               {saving ? 'Saving…' : (mode === 'invite' ? 'Send invite' : 'Save changes')}
             </button>

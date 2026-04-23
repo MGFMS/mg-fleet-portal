@@ -223,10 +223,10 @@ export default function ServiceBooking() {
         </div>
       )}
 
-      <div className="fixed bottom-6 right-6">
+      <div className="fixed bottom-4 sm:bottom-6 right-4 sm:right-6">
         <button
           onClick={() => { setEditId(null); setShowPanel(true) }}
-          className="bg-brand hover:bg-brand-dark text-white rounded-full px-5 py-3 shadow-lg font-semibold text-sm flex items-center gap-1.5"
+          className="bg-brand hover:bg-brand-dark text-white rounded-full px-4 sm:px-5 py-3 shadow-lg font-semibold text-sm flex items-center gap-1.5"
         >
           <Icon name="plus" className="w-4 h-4" />
           New Booking

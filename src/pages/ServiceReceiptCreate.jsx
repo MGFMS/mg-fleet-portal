@@ -167,16 +167,17 @@ export default function ServiceReceiptCreate() {
             <textarea className="input" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
           </Field>
         </div>
-        <div className="mt-3 text-right">
-          <div className="inline-block text-sm">
-            <span className="text-gray-500 mr-3">Estimated Total (Labor + Parts):</span>
+        <div className="mt-3 text-left sm:text-right">
+          <div className="inline-flex flex-col sm:flex-row items-start sm:items-baseline gap-1 sm:gap-3 text-sm">
+            <span className="text-gray-500">Estimated Total (Labor + Parts):</span>
             <span className="text-2xl font-bold text-green-700">{formatMoney(grandTotal)}</span>
           </div>
         </div>
       </Section>
 
-      <div className="fixed bottom-6 right-6">
-        <button type="submit" disabled={submitting} className="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-6 py-3 rounded font-semibold text-sm shadow-lg">
+      {/* Sticky bottom submit on mobile; floating bottom-right on sm+ */}
+      <div className="fixed bottom-0 left-0 right-0 sm:bottom-6 sm:left-auto sm:right-6 bg-white sm:bg-transparent border-t sm:border-0 px-4 py-3 sm:p-0 flex justify-end">
+        <button type="submit" disabled={submitting} className="w-full sm:w-auto bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-6 py-3 rounded font-semibold text-sm shadow-lg">
           {submitting ? 'Submitting…' : 'Submit'}
         </button>
       </div>
@@ -213,7 +214,7 @@ function LineRow({ row, onChange, onAdd, onRemove, isLast }) {
   return (
     <tr>
       <td className="px-3 py-2">
-        <select value={row.type} onChange={(e) => onChange({ type: e.target.value })} className="input py-1 text-xs">
+        <select value={row.type} onChange={(e) => onChange({ type: e.target.value })} className="input py-1 text-sm sm:text-xs min-w-[110px]">
           <option>Labor</option>
           <option>Parts/Materials</option>
         </select>
@@ -223,7 +224,7 @@ function LineRow({ row, onChange, onAdd, onRemove, isLast }) {
       </td>
       <td className="px-3 py-2 relative">
         <input
-          className="input py-1 text-xs"
+          className="input py-1 text-sm sm:text-xs"
           value={row.description}
           onChange={(e) => { onChange({ description: e.target.value }); setShowAuto(true) }}
           onFocus={() => setShowAuto(true)}
