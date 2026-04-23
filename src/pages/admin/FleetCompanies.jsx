@@ -6,6 +6,8 @@ import {
   watchFleetCompanies,
 } from '../../lib/fleetCompanies'
 import { MGFMS_CLIENTS } from '../../lib/dummyData'
+import Icon from '../../components/ui/Icon'
+import PageHero, { HeroStat } from '../../components/ui/PageHero'
 
 const EMPTY = { name: '', code: '', contactEmail: '', contactPhone: '', isActive: true }
 
@@ -14,7 +16,6 @@ export default function FleetCompanies() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
 
-  // editingId: null = form closed, 'new' = adding, otherwise = editing that doc id.
   const [editingId, setEditingId] = useState(null)
   const [form, setForm] = useState(EMPTY)
   const [saving, setSaving] = useState(false)
@@ -108,177 +109,235 @@ export default function FleetCompanies() {
     }
   }
 
+  const activeCount = rows.filter((r) => r.isActive !== false).length
+
   return (
-    <div className="p-4 sm:p-6">
-      <div className="flex items-start justify-between mb-4 gap-4 flex-wrap">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-semibold text-gray-800">Fleet Companies</h1>
-          <p className="text-gray-600 text-sm mt-1">
-            Manage the companies whose fleets are serviced through the portal.
-          </p>
-        </div>
+    <div className="pb-24">
+      <PageHero
+        eyebrow="ADMIN"
+        title="Fleet Companies"
+        subtitle={`${rows.length} total · ${activeCount} active`}
+        right={<HeroStat value={rows.length} label="TOTAL" tone="solid" />}
+      />
+
+      <div className="px-3 sm:px-6 pt-4 space-y-4">
         {editingId === null && (
-          <div className="flex items-center gap-2 whitespace-nowrap">
-            <button
-              onClick={seedFromMgFms}
-              disabled={seeding}
-              title="Creates the 3 real fleet clients that mg-fms uses (Purefoods, National Museum, ChinaBank), so Fleet Manager users can be matched to their vehicles."
-              className="bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 px-3 py-2 rounded-md text-sm font-medium border border-gray-300"
-            >
-              {seeding ? 'Seeding…' : 'Seed from mg-fms'}
-            </button>
-            <button
-              onClick={openAdd}
-              className="bg-brand hover:bg-brand-dark text-white px-4 py-2 rounded-md text-sm font-medium"
-            >
-              + Add Company
-            </button>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <p className="text-gray-600 text-xs sm:text-sm">
+              Manage the companies whose fleets are serviced through the portal.
+            </p>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={seedFromMgFms}
+                disabled={seeding}
+                title="Creates the 3 real fleet clients that mg-fms uses (Purefoods, National Museum, ChinaBank)."
+                className="bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 px-3 py-2.5 rounded-xl text-xs font-bold border border-gray-300"
+              >
+                {seeding ? 'Seeding…' : 'Seed from mg-fms'}
+              </button>
+              <button
+                onClick={openAdd}
+                className="bg-brand hover:bg-brand-dark text-white px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-1.5"
+              >
+                <Icon name="plus" className="w-4 h-4" />
+                Add
+              </button>
+            </div>
           </div>
         )}
-      </div>
 
-      {editingId !== null && (
-        <form onSubmit={submit} className="bg-white rounded-lg shadow-sm border p-4 sm:p-5 mb-4">
-          <div className="text-sm font-semibold text-gray-700 mb-3">
-            {editingId === 'new' ? 'Add new fleet company' : 'Edit fleet company'}
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Field label="Company name *">
+        {editingId !== null && (
+          <form onSubmit={submit} className="bg-white rounded-2xl shadow-sm border p-4 sm:p-5 space-y-4">
+            <div className="text-sm font-bold uppercase tracking-widest text-gray-500">
+              {editingId === 'new' ? 'Add Fleet Company' : 'Edit Fleet Company'}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Field label="Company name *">
+                <input
+                  type="text"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="e.g. Purefoods Corporation"
+                  required
+                  className="input"
+                />
+              </Field>
+              <Field label="Company code *" hint="Short uppercase ID used internally.">
+                <input
+                  type="text"
+                  value={form.code}
+                  onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
+                  placeholder="e.g. PUREFOODS"
+                  required
+                  className="input font-mono uppercase"
+                />
+              </Field>
+              <Field label="Contact email">
+                <input
+                  type="email"
+                  value={form.contactEmail}
+                  onChange={(e) => setForm({ ...form, contactEmail: e.target.value })}
+                  placeholder="contact@company.com"
+                  className="input"
+                />
+              </Field>
+              <Field label="Contact phone">
+                <input
+                  type="text"
+                  value={form.contactPhone}
+                  onChange={(e) => setForm({ ...form, contactPhone: e.target.value })}
+                  placeholder="+63 ..."
+                  className="input"
+                />
+              </Field>
+            </div>
+            <label className="inline-flex items-center gap-2 text-sm text-gray-700">
               <input
-                type="text"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="e.g. Purefoods Corporation"
-                required
-                className="input"
+                type="checkbox"
+                checked={form.isActive}
+                onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
               />
-            </Field>
-            <Field label="Company code *" hint="Short uppercase ID used internally.">
-              <input
-                type="text"
-                value={form.code}
-                onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
-                placeholder="e.g. PUREFOODS"
-                required
-                className="input font-mono uppercase"
-              />
-            </Field>
-            <Field label="Contact email">
-              <input
-                type="email"
-                value={form.contactEmail}
-                onChange={(e) => setForm({ ...form, contactEmail: e.target.value })}
-                placeholder="contact@company.com"
-                className="input"
-              />
-            </Field>
-            <Field label="Contact phone">
-              <input
-                type="text"
-                value={form.contactPhone}
-                onChange={(e) => setForm({ ...form, contactPhone: e.target.value })}
-                placeholder="+63 ..."
-                className="input"
-              />
-            </Field>
-          </div>
-          <label className="inline-flex items-center gap-2 mt-3 text-sm text-gray-700">
-            <input
-              type="checkbox"
-              checked={form.isActive}
-              onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
-            />
-            Active
-          </label>
+              Active
+            </label>
 
-          {saveError && (
-            <div className="mt-3 text-sm text-red-600">Save failed: {saveError}</div>
+            {saveError && (
+              <div className="text-sm text-red-600">Save failed: {saveError}</div>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-2 pt-1">
+              <button
+                type="submit"
+                disabled={saving}
+                className="bg-brand hover:bg-brand-dark disabled:opacity-50 text-white px-4 py-2.5 rounded-xl text-sm font-bold"
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+              <button
+                type="button"
+                onClick={closeForm}
+                disabled={saving}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 rounded-xl text-sm font-bold"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Mobile: card list */}
+        <div className="lg:hidden space-y-2">
+          {loading && <div className="bg-white rounded-2xl border p-6 text-center text-gray-400 text-sm">Loading…</div>}
+          {!loading && loadError && (
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-red-600 text-sm">
+              Failed to load: {loadError.message || String(loadError)}
+            </div>
           )}
+          {!loading && !loadError && rows.length === 0 && (
+            <div className="bg-white rounded-2xl border border-dashed p-6 text-center text-gray-400 text-sm">
+              No fleet companies yet.
+            </div>
+          )}
+          {rows.map((row) => (
+            <CompanyCard
+              key={row.id}
+              row={row}
+              onEdit={() => openEdit(row)}
+              onToggleActive={() => toggleActive(row)}
+            />
+          ))}
+        </div>
 
-          <div className="mt-4 flex flex-col sm:flex-row gap-2">
-            <button
-              type="submit"
-              disabled={saving}
-              className="bg-brand hover:bg-brand-dark disabled:opacity-50 text-white px-4 py-2 rounded-md text-sm font-medium"
-            >
-              {saving ? 'Saving…' : 'Save'}
-            </button>
-            <button
-              type="button"
-              onClick={closeForm}
-              disabled={saving}
-              className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm font-medium"
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      )}
-
-      <div className="bg-white rounded-lg shadow-sm border overflow-x-auto">
-        <table className="min-w-full text-sm whitespace-nowrap">
-          <thead className="bg-gray-50 text-gray-600 text-xs uppercase tracking-wider">
-            <tr>
-              <th className="px-4 py-3 text-left font-medium">Name</th>
-              <th className="px-4 py-3 text-left font-medium">Code</th>
-              <th className="px-4 py-3 text-left font-medium">Contact</th>
-              <th className="px-4 py-3 text-left font-medium">Status</th>
-              <th className="px-4 py-3 text-right font-medium">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {loading && (
-              <EmptyRow>Loading…</EmptyRow>
-            )}
-            {!loading && loadError && (
-              <EmptyRow className="text-red-500">
-                Failed to load: {loadError.message || String(loadError)}
-              </EmptyRow>
-            )}
-            {!loading && !loadError && rows.length === 0 && (
-              <EmptyRow>
-                No fleet companies yet. Click "+ Add Company" to create the first one.
-              </EmptyRow>
-            )}
-            {rows.map((row) => (
-              <tr key={row.id} className={row.isActive === false ? 'opacity-60' : ''}>
-                <td className="px-4 py-3 text-gray-800 font-medium">{row.name || '—'}</td>
-                <td className="px-4 py-3 text-gray-600 font-mono text-xs">{row.code || '—'}</td>
-                <td className="px-4 py-3 text-gray-600">
-                  <div>{row.contactEmail || '—'}</div>
-                  {row.contactPhone && (
-                    <div className="text-xs text-gray-400">{row.contactPhone}</div>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  {row.isActive === false ? (
-                    <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-500">
-                      Inactive
-                    </span>
-                  ) : (
-                    <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700">
-                      Active
-                    </span>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <button
-                    onClick={() => openEdit(row)}
-                    className="text-brand hover:underline text-xs font-medium mr-3"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => toggleActive(row)}
-                    className="text-gray-500 hover:text-gray-800 text-xs font-medium"
-                  >
-                    {row.isActive === false ? 'Reactivate' : 'Deactivate'}
-                  </button>
-                </td>
+        {/* Desktop: table */}
+        <div className="hidden lg:block bg-white rounded-2xl shadow-sm border overflow-x-auto">
+          <table className="min-w-full text-sm whitespace-nowrap">
+            <thead className="bg-gray-50 text-gray-600 text-xs uppercase tracking-wider">
+              <tr>
+                <th className="px-4 py-3 text-left font-medium">Name</th>
+                <th className="px-4 py-3 text-left font-medium">Code</th>
+                <th className="px-4 py-3 text-left font-medium">Contact</th>
+                <th className="px-4 py-3 text-left font-medium">Status</th>
+                <th className="px-4 py-3 text-right font-medium">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {loading && <EmptyRow>Loading…</EmptyRow>}
+              {!loading && loadError && (
+                <EmptyRow className="text-red-500">
+                  Failed to load: {loadError.message || String(loadError)}
+                </EmptyRow>
+              )}
+              {!loading && !loadError && rows.length === 0 && (
+                <EmptyRow>No fleet companies yet.</EmptyRow>
+              )}
+              {rows.map((row) => (
+                <tr key={row.id} className={row.isActive === false ? 'opacity-60' : ''}>
+                  <td className="px-4 py-3 text-gray-800 font-medium">{row.name || '—'}</td>
+                  <td className="px-4 py-3 text-gray-600 font-mono text-xs">{row.code || '—'}</td>
+                  <td className="px-4 py-3 text-gray-600">
+                    <div>{row.contactEmail || '—'}</div>
+                    {row.contactPhone && (
+                      <div className="text-xs text-gray-400">{row.contactPhone}</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {row.isActive === false ? (
+                      <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-500">
+                        Inactive
+                      </span>
+                    ) : (
+                      <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700">
+                        Active
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <button onClick={() => openEdit(row)} className="text-brand hover:underline text-xs font-medium mr-3">Edit</button>
+                    <button onClick={() => toggleActive(row)} className="text-gray-500 hover:text-gray-800 text-xs font-medium">
+                      {row.isActive === false ? 'Reactivate' : 'Deactivate'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CompanyCard({ row, onEdit, onToggleActive }) {
+  const isActive = row.isActive !== false
+  return (
+    <div className={`bg-white rounded-2xl border p-4 ${isActive ? '' : 'opacity-60'}`}>
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <div className="min-w-0 flex-1">
+          <div className="font-bold text-gray-900 text-sm break-words">{row.name || '—'}</div>
+          <div className="text-[11px] text-gray-500 font-mono mt-0.5">{row.code || '—'}</div>
+        </div>
+        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 ${isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+          {isActive ? 'Active' : 'Inactive'}
+        </span>
+      </div>
+      {(row.contactEmail || row.contactPhone) && (
+        <div className="text-xs text-gray-600 space-y-0.5 pb-3 border-b mb-3">
+          {row.contactEmail && <div className="break-all">{row.contactEmail}</div>}
+          {row.contactPhone && <div className="font-mono">{row.contactPhone}</div>}
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          onClick={onEdit}
+          className="text-xs bg-gray-900 hover:bg-black text-white font-bold px-3 py-2 rounded-lg"
+        >
+          Edit
+        </button>
+        <button
+          onClick={onToggleActive}
+          className={`text-xs font-bold px-3 py-2 rounded-lg border-2 ${isActive ? 'bg-white border-gray-200 text-gray-600' : 'bg-green-600 border-green-600 text-white'}`}
+        >
+          {isActive ? 'Deactivate' : 'Reactivate'}
+        </button>
       </div>
     </div>
   )
@@ -287,7 +346,7 @@ export default function FleetCompanies() {
 function Field({ label, hint, children }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+      <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">{label}</label>
       {children}
       {hint && <div className="text-[11px] text-gray-400 mt-1">{hint}</div>}
     </div>
