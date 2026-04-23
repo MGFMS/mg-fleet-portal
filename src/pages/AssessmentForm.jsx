@@ -23,6 +23,7 @@ import {
   getLatestAssessmentForPlate,
 } from '../lib/assessments'
 import PhotoCapture from '../components/PhotoCapture'
+import QuickFixForm, { clearQuickFixDraft } from './QuickFixForm'
 
 const RESULT_OPTIONS = ['pass', 'monitor', 'fail_critical', 'replaced', 'na']
 
@@ -306,6 +307,47 @@ export default function AssessmentForm() {
 
   const progressPct = totalItems ? Math.round((answered / totalItems) * 100) : 0
 
+  // Quick Fix handler — the QuickFixForm hands us the patched itemResults
+  // and pmsData (labor types etc.). We push through the same createAssessment
+  // path so auto-resolve + notifications happen identically to the full flow.
+  const onSubmitQuickFix = async (patchedItemResults, pmsData) => {
+    setSaving(true); setError(null)
+    try {
+      const { rwaNumber } = await createAssessment({
+        appointmentId,
+        header: {
+          ...header,
+          odometer: header.odometer ? Number(header.odometer) : null,
+        },
+        itemResults: patchedItemResults,
+        pmsData,
+      })
+      clearDraft(appointmentId)
+      clearQuickFixDraft(appointmentId)
+      navigate(`/assessments/${rwaNumber}`)
+    } catch (err) {
+      console.error('[assessment] createAssessment (quickfix) failed', err)
+      setError(err.message || String(err))
+      setSaving(false)
+      // Re-throw so QuickFixForm shows its inline error too.
+      throw err
+    }
+  }
+
+  // Quick Fix mode takes over the whole body — the normal inspection flow
+  // doesn't render. Uses its own sticky submit bar.
+  if (header.type === 'Re-Assessment' && reassessMode === 'quickfix' && prevAssessment) {
+    return (
+      <QuickFixForm
+        appointmentId={appointmentId}
+        prevAssessment={prevAssessment}
+        header={header}
+        onBack={() => setReassessMode(null)}
+        onSubmit={onSubmitQuickFix}
+      />
+    )
+  }
+
   return (
     <div className="pb-28">
       {/* ── Live status banner (uses gradient tied to classification) ─ */}
@@ -562,17 +604,10 @@ function TypeBanner({ type, plate, prevAssessment, prevLoading, activeItems, rea
       )
     }
     if (reassessMode === 'quickfix') {
-      // Quick Fix screen itself ships in 6c. For now show a placeholder with
-      // a way back to the mode picker.
-      return (
-        <div className="mx-3 sm:mx-4 mb-3 bg-blue-50 border-2 border-blue-200 rounded-xl p-4 space-y-2">
-          <div className="text-sm font-bold text-blue-900">Quick Fix mode</div>
-          <div className="text-xs text-blue-800">
-            A dedicated Quick Fix screen (document replaced parts + labor) is the next step. For now, mark items below as <strong>Replaced</strong> to record repairs.
-          </div>
-          <button type="button" onClick={() => setReassessMode(null)} className="text-[11px] text-blue-700 font-bold hover:underline">← Switch mode</button>
-        </div>
-      )
+      // QuickFixForm takes over the whole page when this mode is active —
+      // see the early-return in AssessmentForm. This banner should never
+      // render in that case, but return null as a safety.
+      return null
     }
     return (
       <div className="mx-3 sm:mx-4 mb-3 bg-orange-50 border-2 border-orange-200 rounded-xl p-3 flex items-start gap-2 text-xs text-orange-900">

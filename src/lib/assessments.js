@@ -197,12 +197,48 @@ export async function createAssessment({ appointmentId, header, itemResults, pms
     review_status: REVIEW_STATUS.SUBMITTED,
   }
 
+  // Auto-resolve linkage: when a Re-Assessment comes back active or
+  // conditional, any outstanding deferred assessments for this plate get
+  // stamped resolvedByRwa + resolvedAt so the fleet view stops flagging
+  // them. Port of mg-fms-app/src/App.jsx:891–898.
+  let resolvesRwa = null
+  let resolvesRwaList = null
+  if (header.type === 'Re-Assessment' && classification.overallStatus !== 'deferred') {
+    try {
+      const outstanding = await getOutstandingDeferredForPlate(header.plate)
+      if (outstanding.length > 0) {
+        resolvesRwa = outstanding[0].rwaNumber || null
+        resolvesRwaList = outstanding.map((d) => d.rwaNumber).filter(Boolean)
+        if (resolvesRwaList.length <= 1) resolvesRwaList = null
+      }
+      // Flag on the new assessment so the detail view can show what it closed.
+      if (resolvesRwa) assessment.resolvesRwa = resolvesRwa
+      if (resolvesRwaList) assessment.resolvesRwaList = resolvesRwaList
+    } catch (err) {
+      console.warn('[assessments] resolve-lookup failed:', err?.message || err)
+    }
+  }
+
   // Trim photos if the doc exceeds ~900KB, so we stay under Firestore's 1MiB
   // per-doc ceiling. mg-fms parity — see mg-fms-app/src/App.jsx:899.
   const ref = await addDoc(
     collection(db, 'assessments'),
     sanitizeForFirestore(trimPhotosToFit(assessment)),
   )
+
+  // Now stamp the resolved pointer on the deferred docs themselves. Done
+  // AFTER the new doc lands so its RWA number is real. Failures here only
+  // log a warning — the new assessment is already saved.
+  if (resolvesRwa) {
+    try {
+      const outstanding = await getOutstandingDeferredForPlate(header.plate)
+      if (outstanding.length > 0) {
+        await markAssessmentsResolved(outstanding, rwaNumber, new Date(now).toISOString())
+      }
+    } catch (err) {
+      console.warn('[assessments] resolve-stamp failed:', err?.message || err)
+    }
+  }
 
   // Flip the appointment to DIAGNOSED so the pipeline stage advances. This is
   // separate from updateAppointmentStatus because we also want to stamp the

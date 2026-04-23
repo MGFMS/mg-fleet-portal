@@ -160,6 +160,30 @@ export const CATEGORIES = [
 export const ALL_ITEMS = CATEGORIES.flatMap((c) => c.items)
 export const ITEM_MAP  = Object.fromEntries(ALL_ITEMS.map((i) => [i.code, i]))
 
+// ── Labor types (ported from mg-fms-app/src/App.jsx:77) ────────────────────
+// Quick Fix re-assessments let the technician check off which kinds of labor
+// were performed. Shown as a multi-select in the Quick Fix screen; stored in
+// the pmsData.laborTypes array on the assessment doc.
+export const LABOR_TYPES = [
+  { code: 'LBR_PMS',           label: 'Preventive Maintenance Service', icon: '🗓' },
+  { code: 'LBR_DIAG',          label: 'Diagnostic / ECU Scanning',      icon: '💻' },
+  { code: 'LBR_TROUBLESHOOT',  label: 'Troubleshooting',                icon: '🔍' },
+  { code: 'LBR_ENGINE',        label: 'Engine Repair',                  icon: '⚙️' },
+  { code: 'LBR_BRAKE',         label: 'Brake Service',                  icon: '🛑' },
+  { code: 'LBR_SUSPENSION',    label: 'Suspension & Steering Repair',   icon: '🔧' },
+  { code: 'LBR_ELECTRICAL',    label: 'Electrical Repair',              icon: '⚡' },
+  { code: 'LBR_TIRE',          label: 'Tire Service / Replacement',     icon: '🔘' },
+  { code: 'LBR_BODY',          label: 'Body & Chassis Repair',          icon: '🚗' },
+  { code: 'LBR_OIL',           label: 'Oil Change / Fluid Service',     icon: '🛢️' },
+  { code: 'LBR_FILTER',        label: 'Filter Replacement',             icon: '💨' },
+  { code: 'LBR_BELT',          label: 'Belt / Hose Replacement',        icon: '🔗' },
+  { code: 'LBR_AC',            label: 'Air Conditioning Service',       icon: '❄️' },
+  { code: 'LBR_ALIGN',         label: 'Wheel Alignment / Balancing',    icon: '⚖️' },
+  { code: 'LBR_REWIRE',        label: 'Rewiring / Harness Repair',      icon: '🔌' },
+  { code: 'LBR_REPROG',        label: 'Reprogramming / ECU Update',     icon: '🖥️' },
+  { code: 'LBR_OTHER',         label: 'Other',                          icon: '📝' },
+]
+
 // ── Assessment types (ported from mg-fms-app/src/App.jsx:11) ───────────────
 // Same 4 values mg-fms writes to `header.type`. Keep labels identical so
 // both apps render the same badge text on the same records.
