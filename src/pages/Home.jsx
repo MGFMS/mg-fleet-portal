@@ -249,7 +249,7 @@ function AppointmentCard({ appt }) {
         {menu && (
           <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-xl shadow-lg z-10 text-[11px] overflow-hidden">
             <MenuItem to={`/vehicles/${appt.plateNo}`}>View Details</MenuItem>
-            <MenuItem to={`/appointments/${appt.id}/diagnose`}>Diagnose</MenuItem>
+            <MenuItem to={`/appointments/${appt.id}/assess`}>Assess</MenuItem>
             <MenuItem to={`/appointments/${appt.id}/assign`}>Assign Mechanic</MenuItem>
             <MenuItem to={`/appointments/${appt.id}/update`}>Post Update</MenuItem>
             <MenuItem to={`/service-receipts/create?plate=${appt.plateNo}`}>Create Receipt</MenuItem>

@@ -1,12 +1,12 @@
-// Diagnostic / inspection form for /appointments/:id/diagnose. Ported from
+// Assessment / inspection form for /appointments/:id/assess. Ported from
 // mg-fms-app/src/App.jsx (InspectScreen + submit flow), rebuilt to live inside
 // the portal's layout and to write to the SAME `assessments` collection
 // mg-fms uses. On submit: writes the assessment doc, flips the parent
-// appointment to DIAGNOSED, navigates to /assessments/{rwaNumber}.
+// appointment to DIAGNOSED (status kept as-is for back-compat with mg-fms
+// status taxonomy), navigates to /assessments/{rwaNumber}.
 //
 // Deliberately OUT OF SCOPE for this first port (follow-on work):
 //   - PMS sub-flow (31 items, next-due calc, parts/brand details)
-//   - Quick Fix and full Re-Assessment flows
 //   - Supervisor override
 
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -26,7 +26,7 @@ const RESULT_OPTIONS = ['pass', 'monitor', 'fail_critical', 'replaced', 'na']
 // Draft storage. Keyed by appointment id (collision-proof — mg-fms used
 // `plate|date` which broke if the same plate was inspected twice in one day).
 const DRAFT_VERSION = 1
-const draftKey = (appointmentId) => `mgfp.diagnostic.v${DRAFT_VERSION}.${appointmentId || 'standalone'}`
+const draftKey = (appointmentId) => `mgfp.assessment.v${DRAFT_VERSION}.${appointmentId || 'standalone'}`
 
 function loadDraft(appointmentId) {
   if (typeof window === 'undefined') return null
@@ -47,7 +47,7 @@ function saveDraft(appointmentId, payload) {
     window.localStorage.setItem(draftKey(appointmentId), JSON.stringify({ ...payload, savedAt: Date.now() }))
   } catch (err) {
     // Quota exceeded most likely — drafts are best-effort.
-    console.warn('[diagnostic] draft save failed:', err?.message || err)
+    console.warn('[assessment] draft save failed:', err?.message || err)
   }
 }
 
@@ -56,7 +56,7 @@ function clearDraft(appointmentId) {
   try { window.localStorage.removeItem(draftKey(appointmentId)) } catch {}
 }
 
-export default function DiagnosticForm() {
+export default function AssessmentForm() {
   const { id: appointmentId } = useParams()
   const navigate = useNavigate()
   const { profile } = useAuth()
@@ -186,7 +186,7 @@ export default function DiagnosticForm() {
       clearDraft(appointmentId)
       navigate(`/assessments/${rwaNumber}`)
     } catch (err) {
-      console.error('[diagnostic] createAssessment failed', err)
+      console.error('[assessment] createAssessment failed', err)
       setError(err.message || String(err))
       setSaving(false)
     }

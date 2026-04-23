@@ -9,7 +9,7 @@ const REPORTS = [
   { title: 'Mechanic Productivity',   desc: 'Hours logged and vehicles completed per mechanic.', icon: 'tool' },
   { title: 'Fleet PM Compliance',     desc: 'Percentage of fleet vehicles on-schedule for PM.', icon: 'check' },
   { title: 'Parts Consumption',       desc: 'Parts used, reserved, and missing across receipts.', icon: 'backlog' },
-  { title: 'Booking Funnel',          desc: 'Bookings → arrivals → diagnoses → completions.', icon: 'calendar' },
+  { title: 'Booking Funnel',          desc: 'Bookings → arrivals → assessments → completions.', icon: 'calendar' },
   { title: 'Customer Retention',      desc: 'Repeat vs new customers per branch.', icon: 'user' },
 ]
 

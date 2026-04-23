@@ -116,7 +116,7 @@ export async function updateAppointmentStatus(id, nextStatus, note) {
         body: `${appt.customer || ''} · ${appt.scheduledTime || ''}`.trim(),
         plateNo: appt.plateNo,
         appointmentId: id,
-        link: `/appointments/${id}/diagnose`,
+        link: `/appointments/${id}/assess`,
         branch: appt.branch || null,
         company: appt.company || null,
         target_roles: ['field_assessor', 'technician'],
@@ -126,7 +126,7 @@ export async function updateAppointmentStatus(id, nextStatus, note) {
   if (nextStatus === APPT_STATUS.DIAGNOSED || nextStatus === APPT_STATUS.COMPLETED) {
     const appt = await fetchContextDoc(COLLECTION, id)
     if (appt) {
-      const verb = nextStatus === APPT_STATUS.DIAGNOSED ? 'diagnosed' : 'service completed'
+      const verb = nextStatus === APPT_STATUS.DIAGNOSED ? 'assessed' : 'service completed'
       emitNotification({
         kind: nextStatus === APPT_STATUS.COMPLETED ? 'service' : 'status',
         title: `${appt.plateNo} — ${verb}`,
@@ -143,7 +143,7 @@ export async function updateAppointmentStatus(id, nextStatus, note) {
 
 // Active = anything still moving through the pipeline (not COMPLETED /
 // CANCELLED / NO SHOW). Used by /vehicles/:plate to surface the in-flight
-// booking so the user can jump straight to Diagnose.
+// booking so the user can jump straight to Assess.
 const ACTIVE_STATUSES = [
   APPT_STATUS.PENDING_BRANCH_APPROVAL,
   APPT_STATUS.BOOKED,

@@ -151,7 +151,7 @@ export async function createAssessment({ appointmentId, header, itemResults, pms
 
   emitNotification({
     kind: 'status',
-    title: `${header.plate} — diagnosed (${classification.overallStatus.toUpperCase()})`,
+    title: `${header.plate} — assessed (${classification.overallStatus.toUpperCase()})`,
     body: classification.dispatchAllowed
       ? `${rwaNumber} · ${classification.failCriticalCount} critical · ${classification.monitorCount} monitor`
       : `${rwaNumber} · ⛔ Unit on hold`,

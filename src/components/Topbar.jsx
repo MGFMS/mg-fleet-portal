@@ -71,7 +71,8 @@ function deriveTitle(pathname) {
   // Dynamic-segment prefixes
   if (p.startsWith('/vehicles/')) return 'Vehicle Details'
   if (p.startsWith('/assessments/')) return 'Assessment'
-  if (p.startsWith('/appointments/') && p.endsWith('/diagnose')) return 'Inspection'
+  if (p.startsWith('/appointments/') && p.endsWith('/assess')) return 'Assessment'
+  if (p.startsWith('/appointments/') && p.endsWith('/diagnose')) return 'Assessment'
   if (p.startsWith('/appointments/') && p.endsWith('/pms')) return 'PMS Record'
   if (p.startsWith('/appointments/') && p.endsWith('/assign')) return 'Assign Mechanic'
   if (p.startsWith('/appointments/') && p.endsWith('/update')) return 'Post Update'

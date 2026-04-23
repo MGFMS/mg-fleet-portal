@@ -353,7 +353,7 @@ function PmsRow({ item, checked, detail, existing, autoLinkedFrom, odometer, dat
                 className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700"
                 title={`Auto-linked from inspection item ${autoLinkedFrom}`}
               >
-                from diagnostic
+                from assessment
               </span>
             )}
           </div>

@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useParams } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import PortalLayout from './layouts/PortalLayout'
@@ -22,7 +22,7 @@ import Reports from './pages/Reports'
 import ServiceBooking from './pages/ServiceBooking'
 import VehicleServiceUpdate from './pages/VehicleServiceUpdate'
 import AssessmentView from './pages/AssessmentView'
-import DiagnosticForm from './pages/DiagnosticForm'
+import AssessmentForm from './pages/AssessmentForm'
 import PmsRecord from './pages/PmsRecord'
 
 import Quotations from './pages/Quotations'
@@ -63,7 +63,9 @@ export default function App() {
           {/* Appointments / Service Booking — both categories (fleet managers can book too) */}
           <Route path="/appointments"                element={<ProtectedRoute allowedCategories={BOTH}><ServiceBooking /></ProtectedRoute>} />
           <Route path="/appointments/:id/update"     element={<ProtectedRoute allowedCategories={INTERNAL}><VehicleServiceUpdate /></ProtectedRoute>} />
-          <Route path="/appointments/:id/diagnose"   element={<ProtectedRoute allowedCategories={INTERNAL}><DiagnosticForm /></ProtectedRoute>} />
+          <Route path="/appointments/:id/assess"     element={<ProtectedRoute allowedCategories={INTERNAL}><AssessmentForm /></ProtectedRoute>} />
+          {/* Back-compat: old /diagnose URLs bookmarked or linked from Firestore notifications. */}
+          <Route path="/appointments/:id/diagnose"   element={<DiagnoseRedirect />} />
           <Route path="/appointments/:id/pms"        element={<ProtectedRoute allowedCategories={INTERNAL}><PmsRecord /></ProtectedRoute>} />
           <Route path="/appointments/:id/assign"     element={<ProtectedRoute allowedCategories={INTERNAL}>{ph('Assign Mechanic', 'Assign or reassign the mechanic for this appointment.')}</ProtectedRoute>} />
 
@@ -111,4 +113,11 @@ export default function App() {
       </Routes>
     </AuthProvider>
   )
+}
+
+// Preserves old /appointments/:id/diagnose URLs — Firestore notifications
+// emitted before the rename still point there. Redirects to /assess.
+function DiagnoseRedirect() {
+  const { id } = useParams()
+  return <Navigate to={`/appointments/${id}/assess`} replace />
 }

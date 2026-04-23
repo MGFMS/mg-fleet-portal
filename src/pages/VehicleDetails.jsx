@@ -76,8 +76,8 @@ export default function VehicleDetails() {
             <div className="font-semibold mb-1">No assessment found for plate {plateNo}</div>
             <div className="text-xs">
               {currentAppt
-                ? <>This vehicle has an active booking but hasn't been diagnosed yet. Use the <strong>Diagnose</strong> button above to start an assessment.</>
-                : <>This plate doesn't match any assessment yet. Create a booking from <button onClick={() => navigate('/appointments')} className="underline font-semibold">Service Bookings</button>, then mark it arrived and click Diagnose.</>
+                ? <>This vehicle has an active booking but hasn't been assessed yet. Use the <strong>Assess</strong> button above to start.</>
+                : <>This plate doesn't match any assessment yet. Create a booking from <button onClick={() => navigate('/appointments')} className="underline font-semibold">Service Bookings</button>, then mark it arrived and click Assess.</>
               }
             </div>
           </div>
@@ -224,7 +224,7 @@ export default function VehicleDetails() {
 // Compact card for an in-flight booking — rebuilt in brand red to match the
 // rest of round 2. Action buttons stack on mobile so they're all tappable.
 function CurrentBookingCard({ appt, navigate }) {
-  const canDiagnose = appt.status === APPT_STATUS.ARRIVED || appt.status === APPT_STATUS.ONGOING
+  const canAssess = appt.status === APPT_STATUS.ARRIVED || appt.status === APPT_STATUS.ONGOING
   const canRecordPms = [APPT_STATUS.ARRIVED, APPT_STATUS.ONGOING, APPT_STATUS.DIAGNOSED].includes(appt.status)
   return (
     <div className="bg-white border-2 border-brand/20 rounded-2xl shadow-sm overflow-hidden">
@@ -252,12 +252,12 @@ function CurrentBookingCard({ appt, navigate }) {
           >
             Open Booking
           </button>
-          {canDiagnose && (
+          {canAssess && (
             <button
-              onClick={() => navigate(`/appointments/${appt.id}/diagnose`)}
+              onClick={() => navigate(`/appointments/${appt.id}/assess`)}
               className="text-xs bg-brand hover:bg-brand-dark text-white px-3 py-2.5 rounded-lg font-semibold"
             >
-              Diagnose →
+              Assess →
             </button>
           )}
           {canRecordPms && (

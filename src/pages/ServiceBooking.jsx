@@ -451,9 +451,9 @@ function BookingForm({ editId, branch, appointments, vehicles, onClose }) {
           ) : null}
           {existing.status === 'ARRIVED' || existing.status === 'ONGOING' ? (
             <button type="button"
-              onClick={() => navigate(`/appointments/${editId}/diagnose`)}
+              onClick={() => navigate(`/appointments/${editId}/assess`)}
               className="text-xs bg-red-700 hover:bg-red-800 text-white px-2 py-1 rounded">
-              Diagnose →
+              Assess →
             </button>
           ) : null}
           {['ARRIVED', 'ONGOING', 'DIAGNOSED'].includes(existing.status) ? (

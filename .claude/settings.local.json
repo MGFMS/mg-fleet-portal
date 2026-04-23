@@ -15,7 +15,22 @@
       "Bash(git init *)",
       "Bash(git add *)",
       "Bash(rm -rf /c/Users/VJ/mg-fleet-portal/mg-fms-app/.git)",
-      "Bash(git reset *)"
+      "Bash(git reset *)",
+      "Bash(git commit -m 'Initial commit — MG Fleet Portal \\(React + Vite + Firebase\\) *)",
+      "Bash(git remote *)",
+      "Bash(git push *)",
+      "Bash(git fetch *)",
+      "Bash(git checkout *)",
+      "Bash(npm install *)",
+      "Bash(curl *)",
+      "Bash(ipconfig)",
+      "Bash(kill %1)",
+      "Bash(git commit *)",
+      "Bash(grep -oE '\\\\.md\\\\\\\\:static\\\\{[^}]+\\\\}' dist/assets/index-*.css)",
+      "Bash(grep -oE 'md\\\\\\\\:static' dist/assets/index-*.css)",
+      "Bash(grep -oE 'md\\\\\\\\:translate-x-0' dist/assets/index-*.css)",
+      "Bash(grep -oE 'md\\\\\\\\:w-60' dist/assets/index-*.css)",
+      "Bash(git mv *)"
     ]
   }
 }
