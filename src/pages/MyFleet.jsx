@@ -1,6 +1,6 @@
-// My Fleet — customer-scoped vehicle table backed by Firestore `assessments` +
-// `pms_records`. Falls back to dummy data if the collections are empty or the
-// user's company isn't set yet.
+// My Fleet — customer-scoped vehicle list backed by Firestore `assessments`
+// + `pms_records`. Mobile-first card list, desktop retains the paginated
+// table for density.
 
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -8,9 +8,10 @@ import { useAuth } from '../context/AuthContext'
 import { isClientView } from '../lib/roles'
 import { watchVehicles, profileCompany } from '../lib/vehicles'
 import { fleetStats, pmStats, formatDate } from '../lib/dummyData'
-import StatCard from '../components/ui/StatCard'
 import RoadworthyBadge from '../components/ui/RoadworthyBadge'
+import VehicleImage from '../components/ui/VehicleImage'
 import Icon from '../components/ui/Icon'
+import PageHero, { HeroStat } from '../components/ui/PageHero'
 
 const PAGE_SIZES = [10, 25, 50, 100]
 
@@ -55,42 +56,161 @@ export default function MyFleet() {
   const pm = useMemo(() => pmStats(vehicles), [vehicles])
 
   return (
-    <div className="p-4 sm:p-6 pb-16">
-      <div className="flex items-start justify-between mb-5 gap-4 flex-wrap">
-        <h1 className="text-xl sm:text-2xl font-semibold text-gray-800 truncate">My Fleet - {company}</h1>
-        <DataSource source={source} error={error} />
+    <div className="pb-20">
+      <PageHero
+        eyebrow="MY FLEET"
+        title={company}
+        subtitle={`${stats.total} vehicle${stats.total === 1 ? '' : 's'} · ${pm.overdue} overdue · ${pm.dueThisMonth} due this month`}
+        right={<HeroStat value={stats.total} label="TOTAL" tone="solid" />}
+      />
+
+      {/* Floating status tiles — overlap the hero for the mg-fms look */}
+      <div className="px-3 sm:px-6 -mt-3 relative z-10">
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
+          <StatusTile label="Active" value={stats.active} tone="green" />
+          <StatusTile label="Minor"  value={stats.minor}  tone="amber" />
+          <StatusTile label="Unfit"  value={stats.unfit}  tone="red" />
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-3">
-        <StatCard label="Total Fleet"                             value={stats.total}  tone="dark"  icon={<Icon name="car" className="w-5 h-5" />} />
-        <StatCard label="Active/Roadworthy"                       value={stats.active} tone="green" icon={<Icon name="check" className="w-5 h-5" />} />
-        <StatCard label="Minor Repairs Needed & Under Observation" value={stats.minor}  tone="amber" icon={<Icon name="tool" className="w-5 h-5" />} />
-        <StatCard label="Unfit for Use / Unroadworthy"            value={stats.unfit}  tone="red"   icon={<Icon name="warn" className="w-5 h-5" />} />
-      </div>
+      {source === 'error' && (
+        <div className="mx-3 sm:mx-6 mt-3 text-[11px] text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2" title={error?.message || ''}>
+          Read blocked by Firestore rules
+        </div>
+      )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
-        <StatCard compact label="DUE FOR PREVENTIVE MAINTENANCE THIS MONTH" value={pm.dueThisMonth} tone="dark" />
-        <StatCard compact label="SCHEDULED FOR PREVENTIVE MAINTENANCE"      value={pm.scheduled}    tone="dark" />
-        <StatCard compact label="OVERDUE FOR PREVENTIVE MAINTENANCE"        value={pm.overdue}      tone="dark" />
-      </div>
+      <div className="px-3 sm:px-6 pt-5 space-y-4">
+        {/* PM quick stats in compact row */}
+        <div className="grid grid-cols-3 gap-2">
+          <PmTile label="Due this month"      value={pm.dueThisMonth} />
+          <PmTile label="Scheduled"           value={pm.scheduled} />
+          <PmTile label="Overdue"             value={pm.overdue} tone="danger" />
+        </div>
 
-      <FleetTable vehicles={vehicles} loading={loading} />
+        {/* Mobile: card list. Desktop: keep the existing dense table. */}
+        <MobileList vehicles={vehicles} loading={loading} />
+        <div className="hidden lg:block">
+          <FleetTable vehicles={vehicles} loading={loading} />
+        </div>
+      </div>
     </div>
   )
 }
 
-function DataSource({ source, error }) {
-  if (source === 'firestore') return (
-    <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 rounded px-2 py-1">
-      <span className="w-2 h-2 rounded-full bg-green-500" /> Live data
-    </span>
+function StatusTile({ label, value, tone }) {
+  const map = {
+    green: 'bg-green-600',
+    amber: 'bg-amber-500',
+    red:   'bg-red-600',
+  }
+  return (
+    <div className={`${map[tone]} text-white rounded-2xl px-3 py-2.5 flex items-center justify-between shadow-sm`}>
+      <div className="text-[10px] font-bold tracking-widest opacity-90">{label}</div>
+      <div className="text-2xl font-black leading-none">{value ?? '—'}</div>
+    </div>
   )
-  if (source === 'error') return (
-    <span className="inline-flex items-center gap-1 text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1" title={error?.message || ''}>
-      <span className="w-2 h-2 rounded-full bg-red-500" /> Read blocked by Firestore rules
-    </span>
+}
+
+function PmTile({ label, value, tone }) {
+  const isDanger = tone === 'danger'
+  return (
+    <div className={`rounded-xl border px-3 py-2 flex flex-col ${isDanger ? 'bg-red-50 border-red-200' : 'bg-white'}`}>
+      <div className={`text-[10px] font-bold uppercase tracking-wider ${isDanger ? 'text-red-700' : 'text-gray-500'}`}>{label}</div>
+      <div className={`text-xl font-black mt-0.5 ${isDanger ? 'text-red-700' : 'text-gray-800'}`}>{value ?? 0}</div>
+    </div>
   )
-  return null
+}
+
+function MobileList({ vehicles, loading }) {
+  const [search, setSearch] = useState('')
+  const [filter, setFilter] = useState('ALL')
+
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase()
+    return vehicles.filter((v) => {
+      if (filter !== 'ALL' && v.roadworthy !== filter) return false
+      if (!term) return true
+      const hay = [v.plateNo, v.brandModel, v.yearModel, v.assignedTo, v.branch].join(' ').toLowerCase()
+      return hay.includes(term)
+    })
+  }, [vehicles, search, filter])
+
+  return (
+    <div className="lg:hidden space-y-3">
+      {/* Search + filter row */}
+      <div className="bg-white rounded-2xl border p-3 space-y-2">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search plate, model, driver…"
+          className="input"
+        />
+        <div className="flex gap-1.5 overflow-x-auto">
+          {[
+            ['ALL', 'All'],
+            ['active', 'Active'],
+            ['minor', 'Minor'],
+            ['unfit', 'Unfit'],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setFilter(value)}
+              className={`shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap transition-colors ${
+                filter === value ? 'bg-brand text-white' : 'bg-gray-100 text-gray-700'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading && (
+        <div className="bg-white rounded-2xl border p-6 text-center text-gray-400 text-sm">Loading vehicles…</div>
+      )}
+      {!loading && filtered.length === 0 && (
+        <div className="bg-white rounded-2xl border p-6 text-center text-gray-400 text-sm">
+          {vehicles.length === 0 ? 'No vehicles for your company yet.' : 'No matches for the current filter.'}
+        </div>
+      )}
+      <div className="space-y-2">
+        {filtered.map((v) => <VehicleCard key={v.plateNo} vehicle={v} />)}
+      </div>
+    </div>
+  )
+}
+
+function VehicleCard({ vehicle }) {
+  return (
+    <Link
+      to={`/vehicles/${vehicle.plateNo}`}
+      className="flex items-center gap-3 bg-white rounded-2xl border p-3 hover:shadow-md transition-shadow"
+    >
+      <div className="w-20 h-16 shrink-0 bg-gray-50 rounded-xl flex items-center justify-center overflow-hidden">
+        <VehicleImage model={vehicle.model} className="max-h-14 max-w-[4.5rem] object-contain" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="font-black text-base text-gray-900 tracking-wide">{vehicle.plateNo}</div>
+            <div className="text-xs text-gray-500 truncate">{vehicle.brandModel || '—'} {vehicle.yearModel || ''}</div>
+          </div>
+          <RoadworthyBadge status={vehicle.roadworthy} size="sm" />
+        </div>
+        <div className="flex items-center justify-between gap-2 mt-1.5 text-[11px] text-gray-600">
+          <span className="flex items-center gap-1 min-w-0">
+            <Icon name="user" className="w-3 h-3 text-gray-400 shrink-0" />
+            <span className="uppercase truncate">{vehicle.assignedTo || 'Unassigned'}</span>
+          </span>
+          <span className="flex items-center gap-1 shrink-0">
+            <Icon name="calendar" className="w-3 h-3 text-gray-400" />
+            {formatDate(vehicle.nextPms) || '-'}
+          </span>
+        </div>
+      </div>
+    </Link>
+  )
 }
 
 function FleetTable({ vehicles, loading }) {
@@ -129,8 +249,8 @@ function FleetTable({ vehicles, loading }) {
   const pageRows = sorted.slice((current - 1) * pageSize, current * pageSize)
 
   return (
-    <div className="bg-white rounded-md shadow-sm border">
-      <div className="flex items-center justify-between px-3 sm:px-4 py-3 border-b gap-2 flex-wrap">
+    <div className="bg-white rounded-2xl shadow-sm border">
+      <div className="flex items-center justify-between px-4 py-3 border-b gap-2 flex-wrap">
         <div className="text-sm text-gray-600">
           Show{' '}
           <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1) }} className="border rounded px-2 py-1 mx-1 text-sm">
@@ -140,7 +260,7 @@ function FleetTable({ vehicles, loading }) {
         </div>
         <div className="text-sm text-gray-600 flex items-center gap-1">
           <span>Search:</span>
-          <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} className="border rounded px-2 py-1 text-sm w-full sm:w-auto" />
+          <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }} className="border rounded px-2 py-1 text-sm" />
         </div>
       </div>
 

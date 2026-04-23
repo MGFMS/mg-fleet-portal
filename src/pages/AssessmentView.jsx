@@ -90,16 +90,17 @@ export default function AssessmentView() {
   })
 
   return (
-    <div className="pb-16">
+    <div className="pb-20">
+      {/* Desktop-only back link — mobile Topbar already provides one */}
       <button
         onClick={() => navigate(-1)}
-        className="m-4 text-sm text-gray-500 hover:underline"
+        className="hidden md:inline-block m-4 text-sm text-gray-500 hover:underline"
       >
         ← Back
       </button>
 
       {/* ── Gradient status banner ─────────────────────────────────── */}
-      <div className={`bg-gradient-to-b ${cfg.grad} text-white px-4 py-6 text-center mx-4 rounded-2xl`}>
+      <div className={`bg-gradient-to-b ${cfg.grad} text-white px-4 py-6 text-center mx-3 sm:mx-4 rounded-2xl mt-3 md:mt-0`}>
         <div className="text-xs font-bold tracking-widest opacity-60 mb-2">ASSESSMENT RESULT</div>
         <div className="text-2xl font-black mb-1">{cfg.label}</div>
         <div className="text-sm opacity-60 mb-3">{a.rwaNumber}</div>
@@ -123,7 +124,7 @@ export default function AssessmentView() {
         </div>
       </div>
 
-      <div className="px-4 pt-4 space-y-4">
+      <div className="px-3 sm:px-4 pt-4 space-y-4">
         {/* ── Vehicle & inspection header ─────────────────────────── */}
         <Card>
           <CardTitle>Vehicle & Inspection</CardTitle>
