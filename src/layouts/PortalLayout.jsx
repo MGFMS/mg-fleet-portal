@@ -1,52 +1,28 @@
-import { useEffect, useState } from 'react'
-import { Outlet, useLocation } from 'react-router-dom'
+import { Outlet } from 'react-router-dom'
 import Sidebar from '../components/Sidebar'
 import Topbar from '../components/Topbar'
+import BottomNav from '../components/BottomNav'
 
-// On mobile the sidebar lives as an off-canvas drawer: hidden by default,
-// slides in from the left when the Topbar hamburger toggles it. On md+ it
-// goes back to being a permanent side column. Auto-closes on route change so
-// a nav tap doesn't leave the drawer covering the page.
+// Mobile uses a bottom-tab nav (BottomNav) instead of a hamburger drawer —
+// mg-fms style. On md+ the persistent Sidebar takes over and the bottom
+// nav is hidden by its own `md:hidden`. pb-safe on the main container
+// leaves clearance for the bottom-tab bar on mobile.
 export default function PortalLayout() {
-  const [drawerOpen, setDrawerOpen] = useState(false)
-  const location = useLocation()
-
-  // Close on any navigation. location.key changes on every navigate — even
-  // same-path navigations with a different query string or hash — so this
-  // catches cases pathname alone would miss.
-  useEffect(() => { setDrawerOpen(false) }, [location.key])
-
-  // Lock body scroll while drawer is open on mobile so the background doesn't
-  // scroll under the overlay.
-  useEffect(() => {
-    if (!drawerOpen) return
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = prev }
-  }, [drawerOpen])
-
   return (
     <div className="min-h-screen md:h-full md:flex">
-      {/* Backdrop — mobile only, shown when drawer is open */}
-      {drawerOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-30 md:hidden"
-          onClick={() => setDrawerOpen(false)}
-          aria-hidden
-        />
-      )}
-
-      <Sidebar drawerOpen={drawerOpen} onClose={() => setDrawerOpen(false)} />
+      <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0 min-h-screen md:min-h-0">
-        <Topbar onMenuClick={() => setDrawerOpen((v) => !v)} />
-        <main className="flex-1 overflow-auto bg-gray-50">
+        <Topbar />
+        <main className="flex-1 overflow-auto bg-gray-50 pb-16 md:pb-0">
           <Outlet />
         </main>
-        <footer className="text-center text-[11px] text-gray-500 py-2 border-t bg-white">
+        <footer className="hidden md:block text-center text-[11px] text-gray-500 py-2 border-t bg-white">
           © GM Solutions Inc {new Date().getFullYear()}
         </footer>
       </div>
+
+      <BottomNav />
     </div>
   )
 }

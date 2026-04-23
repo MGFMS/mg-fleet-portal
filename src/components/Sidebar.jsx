@@ -1,3 +1,8 @@
+// Desktop-only persistent sidebar. On mobile (< md) the BottomNav and the
+// /more screen replace this. We render it `hidden md:flex` so it's never
+// in the DOM on phones — no drawer mechanism, no off-canvas transform, no
+// overlap risk with the mobile header.
+
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { isCustomer, canBookServices, roleLabel } from '../lib/roles'
@@ -20,7 +25,7 @@ function Item({ to, label, badge }) {
         to={to}
         end
         className={({ isActive }) =>
-          `flex items-center justify-between px-4 py-2.5 md:py-1.5 text-sm transition-colors ` +
+          `flex items-center justify-between px-4 py-1.5 text-sm transition-colors ` +
           (isActive
             ? 'bg-brand text-white'
             : 'text-sidebar-text hover:bg-sidebar-hover hover:text-white')
@@ -50,19 +55,16 @@ function AdminSection({ profile }) {
 function Brand() {
   return (
     <div className="px-4 pt-4 pb-3 border-b border-gray-800">
-      <div className="text-white font-bold text-lg leading-tight">
-        garage <span className="text-brand-light">.\</span> connect
-      </div>
-      <div className="text-[10px] uppercase tracking-wider text-sidebar-heading mt-1">
-        MG Fleet Portal
-      </div>
-      <div className="flex justify-center mt-3">
+      <div className="flex justify-center mb-3">
         <img
           src="/assets/mg-logo.jpg"
           alt="Master Garage"
-          className="w-20 h-20 md:w-28 md:h-28 object-cover rounded-full border-2 border-gray-700"
+          className="w-28 h-28 object-cover rounded-full border-2 border-gray-700"
           onError={(e) => { e.currentTarget.style.display = 'none' }}
         />
+      </div>
+      <div className="text-white font-black text-base tracking-wide text-center">
+        MG FLEET PORTAL
       </div>
     </div>
   )
@@ -84,50 +86,17 @@ function Footer({ profile }) {
   )
 }
 
-// On mobile the sidebar is a fixed-position drawer (translated off-screen
-// by default, slid in when `drawerOpen` flips). On md+ it's a static column.
-// A close button is rendered inside the drawer for mobile so users who opened
-// it but changed their mind have an obvious exit besides the backdrop.
-export default function Sidebar({ drawerOpen = false, onClose }) {
+export default function Sidebar() {
   const { profile } = useAuth()
   const role = profile?.role
   // Admins always get the full internal sidebar regardless of their role.
   const customerView = isCustomer(role) && !profile?.is_admin
 
-  // Belt-and-suspenders: translate-x AND display:hidden when closed on
-  // mobile. If the transform gets squelched by a browser quirk or a
-  // z-stacking glitch, `hidden` still keeps it out of the DOM paint. On
-  // md+ it's always a static column regardless of drawerOpen.
-  const shellClasses =
-    'fixed inset-y-0 left-0 z-40 w-64 bg-sidebar text-sidebar-text ' +
-    'overflow-y-auto flex flex-col transform transition-transform duration-200 ease-out ' +
-    'md:static md:translate-x-0 md:w-60 md:h-full md:z-auto md:flex ' +
-    (drawerOpen ? 'flex translate-x-0' : 'hidden -translate-x-full md:translate-x-0')
-
-  // Close the drawer when any link inside it is tapped. Relying on
-  // pathname-change alone wasn't enough — tapping a Quick Link that points
-  // at the current route (e.g. "+ Booking" from /appointments) left the
-  // drawer overlaid on top of the content. Harmless on md+ since onClose
-  // still just flips a state that CSS ignores at that breakpoint.
-  const handleNavClick = (e) => {
-    if (!onClose) return
-    if (e.target.closest && e.target.closest('a')) onClose()
-  }
-
-  const MobileCloseButton = () => (
-    <button
-      onClick={onClose}
-      className="md:hidden absolute top-2 right-2 w-8 h-8 rounded-md hover:bg-sidebar-hover flex items-center justify-center text-gray-400 hover:text-white"
-      aria-label="Close menu"
-    >
-      ✕
-    </button>
-  )
+  const shellClasses = 'hidden md:flex w-60 h-full bg-sidebar text-sidebar-text overflow-y-auto flex-col shrink-0'
 
   if (customerView) {
     return (
-      <aside className={shellClasses} onClick={handleNavClick}>
-        <MobileCloseButton />
+      <aside className={shellClasses}>
         <Brand />
         <Section title="Fleet">
           <Item to="/portal" label="Fleet Dashboard" />
@@ -146,8 +115,7 @@ export default function Sidebar({ drawerOpen = false, onClose }) {
   }
 
   return (
-    <aside className={shellClasses} onClick={handleNavClick}>
-      <MobileCloseButton />
+    <aside className={shellClasses}>
       <Brand />
       <Section title="Quick Links">
         <Item to="/home" label="My Garage" />

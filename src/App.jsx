@@ -33,6 +33,7 @@ import ServiceReceiptDetails from './pages/ServiceReceiptDetails'
 import FleetCompanies from './pages/admin/FleetCompanies'
 import Users from './pages/admin/Users'
 import AuthComplete from './pages/AuthComplete'
+import More from './pages/More'
 
 const INTERNAL = ['internal']
 const CUSTOMER = ['customer']
@@ -97,6 +98,12 @@ export default function App() {
           {/* Admin (gated by is_admin flag, not by role category) */}
           <Route path="/admin/fleet-companies" element={<ProtectedRoute requireAdmin><FleetCompanies /></ProtectedRoute>} />
           <Route path="/admin/users"           element={<ProtectedRoute requireAdmin><Users /></ProtectedRoute>} />
+
+          {/* Mobile More screen — overflow menu for the BottomNav */}
+          <Route path="/more"                  element={<ProtectedRoute allowedCategories={BOTH}><More /></ProtectedRoute>} />
+
+          {/* Shared /notifications for users reaching it via the mobile bell */}
+          <Route path="/notifications"         element={<ProtectedRoute allowedCategories={BOTH}><Notifications /></ProtectedRoute>} />
         </Route>
 
         <Route path="/" element={<Navigate to="/login" replace />} />
