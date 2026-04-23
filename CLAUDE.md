@@ -2,8 +2,27 @@
 
 React + Firebase rebuild of the ASP.NET MVC **Garage Connect V2** fleet portal.
 Reads/writes the **same Firestore database** as the MG FMS mobile app
-(`mg-fms.web.app`). The legacy .NET source lives in `/_reference_dotnet/`
-and the SQL schemas in `/_reference_sql_schema/` — **reference only, never modify**.
+(`mg-fms.web.app`). Legacy SQL schemas live in `/_reference_sql_schema/` —
+**reference only, never modify**. The legacy .NET source is not in this repo;
+rely on SQL schemas + the in-repo `mg-fms-app/` for intent.
+
+## ⚠️ Always consult `mg-fms-app/` before designing any feature
+
+The mg-fms mobile app is the **source of truth for product behavior** (inspection
+items, scoring rules, PMS taxonomy, defect codes, classification, status
+transitions). We **port, we do not reinvent**. Before building or modifying
+any feature in the portal:
+
+1. Check whether mg-fms already implements it (`mg-fms-app/src/App.jsx`,
+   `mg-fms-app/src/firebase.js`).
+2. If yes, port the logic verbatim into the portal — field names, score
+   weights, thresholds, and labels must match so both apps agree on the same
+   Firestore documents.
+3. Reuse the shared catalog at `src/lib/mgfms-catalog.js` (ported PMS items,
+   inspection categories, defect codes, scoring/action helpers). Add to it
+   rather than duplicate it.
+4. When mg-fms has a bug, fix it on port — don't copy it. See "Active problems"
+   below.
 
 ---
 
@@ -239,16 +258,33 @@ after login. `ProtectedRoute allowedRoles={[...]}` guards each route.
 
 ---
 
-## Build plan (Week 1 done)
+## Build status
 
-- [x] Vite + React + Tailwind + Firebase scaffolding
-- [x] Auth context + role-based route guard
-- [x] Login page
-- [x] Sidebar + Topbar portal shell
-- [x] Stub routes for all 14 sections (staff + fleet customer)
-- [ ] **Week 2+**: implement feature pages in this order — Appointments,
-      Diagnostics, Quotations, Service Receipts, Vehicles, Customers,
-      Inventory, Reports.
+Scaffolding and most feature pages are in place. Real pages (not stubs)
+currently live under `src/pages/` for: Home, Portal, Login, Notifications,
+MyMechanics, MyFleet, ServiceBooking, ServiceLog, Quotations, ServiceReceipts
+(+ create/details), AssessmentView, VehicleServiceUpdate, Vehicles (+ details),
+Customers, Mechanics, Services, Reports, and `admin/` (FleetCompanies, Users).
+
+Portal data layer lives in `src/lib/` — `appointments.js`, `vehicles.js`,
+`customers.js` (via dummyData), `serviceReceipts.js`, `serviceUpdates.js`,
+`notifications.js`, `users.js`, `fleetCompanies.js`, `invites.js`,
+`mgfms-catalog.js`, and dummy fallbacks `dummyData.js` / `dummyVehicles.js`.
+
+`firebase.json` exists at the repo root (portal deploy config).
+
+**Still needed** (ordered by pipeline relevance):
+1. Port the mg-fms **Inspection Form** into `/appointments/:id/diagnose` —
+   currently a `Placeholder`. Write to `assessments` (same collection mg-fms
+   writes) using `mgfms-catalog` verbatim.
+2. Port the **PMS record UI** (same collection `pms_records`).
+3. Assign-mechanic page (`/appointments/:id/assign` — lib helper
+   `assignMechanic` already exists).
+4. Quick Fix + full Re-Assessment flows from mg-fms.
+5. Analytics dashboard (PMS urgency, critical defects).
+6. Supervisor override flow.
+7. Replace hardcoded vehicle registry (`src/lib/dummyVehicles.js`) with an
+   auto-built registry from `assessments` history (mg-fms pattern).
 
 ---
 
@@ -277,7 +313,15 @@ Architecture, Firestore schema, auth flow, known issues, and deploy config for M
 - `docs/handoff/FMS_KNOWN_ISSUES.md`
 - `docs/handoff/FMS_FIREBASE_CONFIG.md`
 
-**Future Claude Code sessions: read all four when touching architecture, Firebase, auth, Firestore schema, or any merge task.** The portal has no `firebase.json` yet; any Hosting / rules config referenced in the handoff belongs to the `mg-fms` project.
+**Future Claude Code sessions: read all four when touching architecture, Firebase, auth, Firestore schema, or any merge task.** The portal has its own `firebase.json` at the repo root; the mg-fms app has a separate one at `mg-fms-app/firebase.json` — don't confuse them.
+
+### Field-name drift (intentional)
+
+Portal-only collections (e.g. `appointments`) use camelCase field names
+(`plateNo`, `scheduledAt`) that differ from the SQL schemas' snake_case. This
+is **intentional** because these collections are not shared with mg-fms. Any
+collection that *is* shared with mg-fms (`assessments`, `pms_records`, `users`)
+must keep mg-fms's exact field names.
 
 ### Active problems being tracked
 

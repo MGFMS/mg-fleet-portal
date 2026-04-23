@@ -1,3 +1,8 @@
+// Desktop-only persistent sidebar. On mobile (< md) the BottomNav and the
+// /more screen replace this. We render it `hidden md:flex` so it's never
+// in the DOM on phones — no drawer mechanism, no off-canvas transform, no
+// overlap risk with the mobile header.
+
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { isCustomer, canBookServices, roleLabel } from '../lib/roles'
@@ -50,19 +55,16 @@ function AdminSection({ profile }) {
 function Brand() {
   return (
     <div className="px-4 pt-4 pb-3 border-b border-gray-800">
-      <div className="text-white font-bold text-lg leading-tight">
-        garage <span className="text-brand-light">.\</span> connect
-      </div>
-      <div className="text-[10px] uppercase tracking-wider text-sidebar-heading mt-1">
-        MG Fleet Portal
-      </div>
-      <div className="flex justify-center mt-3">
+      <div className="flex justify-center mb-3">
         <img
           src="/assets/mg-logo.jpg"
           alt="Master Garage"
           className="w-28 h-28 object-cover rounded-full border-2 border-gray-700"
           onError={(e) => { e.currentTarget.style.display = 'none' }}
         />
+      </div>
+      <div className="text-white font-black text-base tracking-wide text-center">
+        MG FLEET PORTAL
       </div>
     </div>
   )
@@ -90,9 +92,11 @@ export default function Sidebar() {
   // Admins always get the full internal sidebar regardless of their role.
   const customerView = isCustomer(role) && !profile?.is_admin
 
+  const shellClasses = 'hidden md:flex w-60 h-full bg-sidebar text-sidebar-text overflow-y-auto flex-col shrink-0'
+
   if (customerView) {
     return (
-      <aside className="w-60 bg-sidebar text-sidebar-text h-full overflow-y-auto flex flex-col">
+      <aside className={shellClasses}>
         <Brand />
         <Section title="Fleet">
           <Item to="/portal" label="Fleet Dashboard" />
@@ -111,7 +115,7 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="w-60 bg-sidebar text-sidebar-text h-full overflow-y-auto flex flex-col">
+    <aside className={shellClasses}>
       <Brand />
       <Section title="Quick Links">
         <Item to="/home" label="My Garage" />

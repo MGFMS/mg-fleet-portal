@@ -42,6 +42,30 @@ export const PMS_ITEMS = [
 
 export const PMS_MAP = Object.fromEntries(PMS_ITEMS.map((p) => [p.code, p]))
 
+// Inspection code → PMS code map. Port of mg-fms-app/src/App.jsx:98. When an
+// inspection item is marked `replaced` in the diagnostic, the matching PMS
+// item auto-checks with the brand/qty/photos carried over. Keep in sync with
+// mg-fms: both apps rely on this for the cross-flow prefill.
+export const INSP_TO_PMS = {
+  ENG_OIL:        'PMS_OIL',
+  ENG_OIL_FILTER: 'PMS_OIL_FILTER',
+  ENG_AIR:        'PMS_AIR',
+  ENG_CABIN:      'PMS_CABIN',
+  ENG_SPARK:      'PMS_SPARK',
+  ENG_FUEL:       'PMS_FUEL',
+  ENG_BELT:       'PMS_DRIVEBELT',
+  ENG_COOL:       'PMS_COOL',
+  ENG_TRANS:      'PMS_TRANS',
+  BRK_PAD_F:      'PMS_BRAKE_PAD_F',
+  BRK_PAD_R:      'PMS_BRAKE_PAD_R',
+  BRK_DRUM:       'PMS_BRAKE_DRUM',
+  BRK_SHOE:       'PMS_BRAKE_SHOE',
+  BRK_FLUID:      'PMS_BRAKE_FLUID',
+  BRK_HAND:       'PMS_BRAKE_SHOE',
+  ELC_BATT:       'PMS_BATT',
+  ELC_BATT_V:     'PMS_BATT',
+}
+
 // ── Defect codes dictionary ──────────────────────────────────────────────
 export const DEFECT_CODES = {
   LOW_THICKNESS: 'Low thickness',
@@ -135,6 +159,80 @@ export const CATEGORIES = [
 
 export const ALL_ITEMS = CATEGORIES.flatMap((c) => c.items)
 export const ITEM_MAP  = Object.fromEntries(ALL_ITEMS.map((i) => [i.code, i]))
+
+// ── Labor types (ported from mg-fms-app/src/App.jsx:77) ────────────────────
+// Quick Fix re-assessments let the technician check off which kinds of labor
+// were performed. Shown as a multi-select in the Quick Fix screen; stored in
+// the pmsData.laborTypes array on the assessment doc.
+export const LABOR_TYPES = [
+  { code: 'LBR_PMS',           label: 'Preventive Maintenance Service', icon: '🗓' },
+  { code: 'LBR_DIAG',          label: 'Diagnostic / ECU Scanning',      icon: '💻' },
+  { code: 'LBR_TROUBLESHOOT',  label: 'Troubleshooting',                icon: '🔍' },
+  { code: 'LBR_ENGINE',        label: 'Engine Repair',                  icon: '⚙️' },
+  { code: 'LBR_BRAKE',         label: 'Brake Service',                  icon: '🛑' },
+  { code: 'LBR_SUSPENSION',    label: 'Suspension & Steering Repair',   icon: '🔧' },
+  { code: 'LBR_ELECTRICAL',    label: 'Electrical Repair',              icon: '⚡' },
+  { code: 'LBR_TIRE',          label: 'Tire Service / Replacement',     icon: '🔘' },
+  { code: 'LBR_BODY',          label: 'Body & Chassis Repair',          icon: '🚗' },
+  { code: 'LBR_OIL',           label: 'Oil Change / Fluid Service',     icon: '🛢️' },
+  { code: 'LBR_FILTER',        label: 'Filter Replacement',             icon: '💨' },
+  { code: 'LBR_BELT',          label: 'Belt / Hose Replacement',        icon: '🔗' },
+  { code: 'LBR_AC',            label: 'Air Conditioning Service',       icon: '❄️' },
+  { code: 'LBR_ALIGN',         label: 'Wheel Alignment / Balancing',    icon: '⚖️' },
+  { code: 'LBR_REWIRE',        label: 'Rewiring / Harness Repair',      icon: '🔌' },
+  { code: 'LBR_REPROG',        label: 'Reprogramming / ECU Update',     icon: '🖥️' },
+  { code: 'LBR_OTHER',         label: 'Other',                          icon: '📝' },
+]
+
+// ── Assessment types (ported from mg-fms-app/src/App.jsx:11) ───────────────
+// Same 4 values mg-fms writes to `header.type`. Keep labels identical so
+// both apps render the same badge text on the same records.
+export const ASSESS_TYPES = ['Initial', 'Periodic', 'Re-Assessment', 'Pre-Dispatch']
+
+// Pre-Dispatch inspections only cover safety-critical items — anything
+// flagged `holdUnit`, `isCritical`, or `isCompliance`. Everything else gets
+// auto-filled as N/A so the inspector isn't slowed down during a pre-trip
+// check. Port of mg-fms-app/src/App.jsx:179.
+export const PRE_DISPATCH_ITEMS = new Set(
+  ALL_ITEMS.filter((i) => i.holdUnit || i.isCritical || i.isCompliance).map((i) => i.code)
+)
+
+// Given an assessment type + (for Re-Assessment) the previous assessment,
+// return the set of item codes that need to be answered this pass. `null`
+// means "all items". Port of mg-fms-app/src/App.jsx:180.
+//
+//   Initial / Periodic → null  (all ALL_ITEMS)
+//   Pre-Dispatch       → PRE_DISPATCH_ITEMS
+//   Re-Assessment      → Set of items that were fail_critical or monitor in
+//                        the previous assessment
+export function getActiveItems(type, prevAssessment) {
+  if (type === 'Re-Assessment' && prevAssessment) {
+    const flagged = new Set()
+    for (const i of ALL_ITEMS) {
+      const r = prevAssessment.itemResults?.[i.code]
+      if (r?.resultCode === 'fail_critical' || r?.resultCode === 'monitor') flagged.add(i.code)
+    }
+    return flagged
+  }
+  if (type === 'Pre-Dispatch') return PRE_DISPATCH_ITEMS
+  return null
+}
+
+// For a history of assessments on one plate, tally how many times each item
+// came back fail_critical or monitor. Used by VehicleProfile / reports to
+// surface recurring defects. Port of mg-fms-app/src/App.jsx:185.
+export function getRepeatDefects(vehicleAssessments) {
+  const counts = {}
+  for (const a of vehicleAssessments || []) {
+    for (const item of ALL_ITEMS) {
+      const r = a.itemResults?.[item.code]
+      if (r?.resultCode === 'fail_critical' || r?.resultCode === 'monitor') {
+        counts[item.code] = (counts[item.code] || 0) + 1
+      }
+    }
+  }
+  return counts
+}
 
 // ── Status / result / action configs ─────────────────────────────────────
 export const SC = {

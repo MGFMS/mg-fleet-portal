@@ -4,15 +4,18 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Matches mg-fms so both apps look like one product.
+        // red-700 #b91c1c is the dominant brand color; -dark for active states,
+        // -light for hover accents.
         brand: {
-          DEFAULT: '#0d6efd',
-          dark: '#0a58ca',
-          light: '#258cfb',
+          DEFAULT: '#b91c1c', // red-700
+          dark: '#991b1b',    // red-800
+          light: '#dc2626',   // red-600
         },
         sidebar: {
           DEFAULT: '#212529',
           hover: '#2c3136',
-          active: '#0d6efd',
+          active: '#b91c1c',
           text: '#adb5bd',
           heading: '#6c757d',
         },

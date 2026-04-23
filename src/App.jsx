@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useParams } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import PortalLayout from './layouts/PortalLayout'
@@ -22,6 +22,8 @@ import Reports from './pages/Reports'
 import ServiceBooking from './pages/ServiceBooking'
 import VehicleServiceUpdate from './pages/VehicleServiceUpdate'
 import AssessmentView from './pages/AssessmentView'
+import AssessmentForm from './pages/AssessmentForm'
+import PmsRecord from './pages/PmsRecord'
 
 import Quotations from './pages/Quotations'
 import ServiceReceipts from './pages/ServiceReceipts'
@@ -31,6 +33,7 @@ import ServiceReceiptDetails from './pages/ServiceReceiptDetails'
 import FleetCompanies from './pages/admin/FleetCompanies'
 import Users from './pages/admin/Users'
 import AuthComplete from './pages/AuthComplete'
+import More from './pages/More'
 
 const INTERNAL = ['internal']
 const CUSTOMER = ['customer']
@@ -60,7 +63,10 @@ export default function App() {
           {/* Appointments / Service Booking — both categories (fleet managers can book too) */}
           <Route path="/appointments"                element={<ProtectedRoute allowedCategories={BOTH}><ServiceBooking /></ProtectedRoute>} />
           <Route path="/appointments/:id/update"     element={<ProtectedRoute allowedCategories={INTERNAL}><VehicleServiceUpdate /></ProtectedRoute>} />
-          <Route path="/appointments/:id/diagnose"   element={<ProtectedRoute allowedCategories={INTERNAL}>{ph('Diagnostic', 'Create/edit a diagnostic for this appointment.')}</ProtectedRoute>} />
+          <Route path="/appointments/:id/assess"     element={<ProtectedRoute allowedCategories={INTERNAL}><AssessmentForm /></ProtectedRoute>} />
+          {/* Back-compat: old /diagnose URLs bookmarked or linked from Firestore notifications. */}
+          <Route path="/appointments/:id/diagnose"   element={<DiagnoseRedirect />} />
+          <Route path="/appointments/:id/pms"        element={<ProtectedRoute allowedCategories={INTERNAL}><PmsRecord /></ProtectedRoute>} />
           <Route path="/appointments/:id/assign"     element={<ProtectedRoute allowedCategories={INTERNAL}>{ph('Assign Mechanic', 'Assign or reassign the mechanic for this appointment.')}</ProtectedRoute>} />
 
           {/* Quotations */}
@@ -94,6 +100,12 @@ export default function App() {
           {/* Admin (gated by is_admin flag, not by role category) */}
           <Route path="/admin/fleet-companies" element={<ProtectedRoute requireAdmin><FleetCompanies /></ProtectedRoute>} />
           <Route path="/admin/users"           element={<ProtectedRoute requireAdmin><Users /></ProtectedRoute>} />
+
+          {/* Mobile More screen — overflow menu for the BottomNav */}
+          <Route path="/more"                  element={<ProtectedRoute allowedCategories={BOTH}><More /></ProtectedRoute>} />
+
+          {/* Shared /notifications for users reaching it via the mobile bell */}
+          <Route path="/notifications"         element={<ProtectedRoute allowedCategories={BOTH}><Notifications /></ProtectedRoute>} />
         </Route>
 
         <Route path="/" element={<Navigate to="/login" replace />} />
@@ -101,4 +113,11 @@ export default function App() {
       </Routes>
     </AuthProvider>
   )
+}
+
+// Preserves old /appointments/:id/diagnose URLs — Firestore notifications
+// emitted before the rename still point there. Redirects to /assess.
+function DiagnoseRedirect() {
+  const { id } = useParams()
+  return <Navigate to={`/appointments/${id}/assess`} replace />
 }

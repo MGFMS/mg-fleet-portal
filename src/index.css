@@ -24,7 +24,11 @@
     @apply btn bg-gray-200 text-gray-800 hover:bg-gray-300;
   }
   .input {
+    /* text-base (16px) on mobile stops iOS Safari from zooming the viewport
+       when the input gets focus; shrink to text-sm only at sm+ breakpoints
+       where desktop ergonomics are fine. */
     @apply w-full px-3 py-2 border border-gray-300 rounded-md
+           text-base sm:text-sm
            focus:outline-none focus:ring-2 focus:ring-brand focus:border-brand;
   }
   .label {

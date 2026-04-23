@@ -42,11 +42,16 @@ export default function Login() {
     <div className="h-full min-h-screen bg-sidebar flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-6">
-          <div className="text-white font-bold text-3xl">
-            garage <span className="text-brand-light">.\</span> connect
+          <div className="flex justify-center mb-4">
+            <img
+              src="/assets/mg-logo.jpg"
+              alt="Master Garage"
+              className="w-24 h-24 object-cover rounded-full border-2 border-gray-700"
+              onError={(e) => { e.currentTarget.style.display = 'none' }}
+            />
           </div>
-          <div className="text-sidebar-text text-xs uppercase tracking-wider mt-1">
-            MG Fleet Portal
+          <div className="text-white font-black text-2xl tracking-wide">
+            MG FLEET PORTAL
           </div>
         </div>
 

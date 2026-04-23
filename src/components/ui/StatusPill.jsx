@@ -2,6 +2,7 @@
 // Matches the status pipeline cards on the staff dashboard.
 
 const STATUS_STYLES = {
+  PENDING_BRANCH_APPROVAL: 'bg-amber-500 text-white',
   BOOKED:     'bg-gray-500 text-white',
   ARRIVED:    'bg-sky-500 text-white',
   DIAGNOSED:  'bg-indigo-500 text-white',
@@ -40,12 +41,13 @@ export function PipelineCard({ label, count, tone = 'gray' }) {
     blue:    'bg-blue-600',
     yellow:  'bg-yellow-500',
     green:   'bg-green-600',
+    amber:   'bg-amber-500',
   }
   const bg = toneMap[tone] || toneMap.gray
   return (
-    <div className={`${bg} text-white rounded-md px-4 py-2 flex items-center justify-between`}>
-      <span className="text-xs font-bold tracking-wider">{label}</span>
-      <span className="bg-white/90 text-gray-800 rounded px-2 py-0.5 text-sm font-bold min-w-[2rem] text-center">
+    <div className={`${bg} text-white rounded-md px-2.5 sm:px-4 py-2 flex items-center justify-between gap-1.5`}>
+      <span className="text-[10px] sm:text-xs font-bold tracking-wider truncate">{label}</span>
+      <span className="bg-white/90 text-gray-800 rounded px-1.5 sm:px-2 py-0.5 text-xs sm:text-sm font-bold min-w-[1.75rem] sm:min-w-[2rem] text-center shrink-0">
         {count ?? '—'}
       </span>
     </div>
