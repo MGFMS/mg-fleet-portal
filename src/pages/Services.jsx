@@ -40,12 +40,13 @@ const CATEGORIES = [
 
 export default function Services() {
   return (
-    <div className="p-6 pb-20">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-semibold text-gray-800">Services Offered</h1>
-        <button className="bg-brand hover:bg-brand-dark text-white px-3 py-1.5 rounded text-sm font-semibold flex items-center gap-1">
+    <div className="p-4 sm:p-6 pb-20">
+      <div className="flex items-center justify-between mb-4 gap-2">
+        <h1 className="text-xl sm:text-2xl font-semibold text-gray-800">Services Offered</h1>
+        <button className="bg-brand hover:bg-brand-dark text-white px-3 py-1.5 rounded text-sm font-semibold flex items-center gap-1 shrink-0">
           <Icon name="plus" className="w-4 h-4" />
-          Add Service
+          <span className="hidden sm:inline">Add Service</span>
+          <span className="sm:hidden">Add</span>
         </button>
       </div>
 
@@ -56,7 +57,8 @@ export default function Services() {
               <Icon name="tool" className="w-4 h-4" />
               {cat.name}
             </div>
-            <table className="min-w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="min-w-full text-sm whitespace-nowrap">
               <thead className="bg-gray-50 text-xs uppercase tracking-wider text-gray-600">
                 <tr>
                   <th className="px-4 py-2 text-left font-medium">Code</th>
@@ -78,6 +80,7 @@ export default function Services() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         ))}
       </div>

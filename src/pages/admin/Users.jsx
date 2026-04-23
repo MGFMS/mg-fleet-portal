@@ -127,10 +127,10 @@ export default function Users() {
   const isCustomerRole = ['fleet_manager', 'fleet_user', 'customer'].includes(form.role)
 
   return (
-    <div className="p-6 pb-20">
-      <div className="flex items-start justify-between mb-4 gap-4">
+    <div className="p-4 sm:p-6 pb-20">
+      <div className="flex items-start justify-between mb-4 gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-800">Users</h1>
+          <h1 className="text-xl sm:text-2xl font-semibold text-gray-800">Users</h1>
           <p className="text-gray-600 text-sm mt-1">
             Grant portal access and assign roles + fleet companies. Fleet customers only see vehicles from the company you pick here.
           </p>
@@ -230,8 +230,8 @@ export default function Users() {
         </form>
       )}
 
-      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-white rounded-lg shadow-sm border overflow-x-auto">
+        <table className="min-w-full text-sm whitespace-nowrap">
           <thead className="bg-gray-50 text-xs uppercase tracking-wider text-gray-600">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Name</th>

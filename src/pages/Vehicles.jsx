@@ -38,15 +38,15 @@ export default function Vehicles() {
   }, [vehicles])
 
   return (
-    <div className="p-6 pb-20">
-      <div className="flex items-start justify-between mb-4">
-        <h1 className="text-2xl font-semibold text-gray-800">Fleet (All Vehicles)</h1>
-        {source === 'error' && <span className="text-[11px] text-red-700 bg-red-50 border border-red-200 rounded px-2 py-0.5">Read blocked</span>}
+    <div className="p-4 sm:p-6 pb-20">
+      <div className="flex items-start justify-between mb-4 gap-2">
+        <h1 className="text-xl sm:text-2xl font-semibold text-gray-800 truncate">Fleet (All Vehicles)</h1>
+        {source === 'error' && <span className="text-[11px] text-red-700 bg-red-50 border border-red-200 rounded px-2 py-0.5 shrink-0">Read blocked</span>}
       </div>
 
       <div className="bg-white rounded-md border">
-        <div className="flex flex-wrap items-center justify-between px-4 py-3 border-b gap-3">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between px-3 sm:px-4 py-3 border-b gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
             <select value={company} onChange={(e) => setCompany(e.target.value)} className="border rounded px-2 py-1 text-sm">
               <option value="ALL">All companies</option>
               {companies.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -60,7 +60,7 @@ export default function Vehicles() {
             <span className="text-xs text-gray-500">{rows.length} vehicles</span>
           </div>
           <div className="flex items-center gap-2">
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search plate, model, driver..." className="border rounded px-2 py-1 text-sm w-64" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search plate, model, driver..." className="border rounded px-2 py-1 text-sm w-full sm:w-64" />
             <button className="bg-brand hover:bg-brand-dark text-white px-3 py-1.5 rounded text-sm font-semibold flex items-center gap-1">
               <Icon name="plus" className="w-4 h-4" />
               Add Vehicle

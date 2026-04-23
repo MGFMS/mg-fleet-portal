@@ -20,7 +20,7 @@ function Item({ to, label, badge }) {
         to={to}
         end
         className={({ isActive }) =>
-          `flex items-center justify-between px-4 py-1.5 text-sm transition-colors ` +
+          `flex items-center justify-between px-4 py-2.5 md:py-1.5 text-sm transition-colors ` +
           (isActive
             ? 'bg-brand text-white'
             : 'text-sidebar-text hover:bg-sidebar-hover hover:text-white')
@@ -60,7 +60,7 @@ function Brand() {
         <img
           src="/assets/mg-logo.jpg"
           alt="Master Garage"
-          className="w-28 h-28 object-cover rounded-full border-2 border-gray-700"
+          className="w-20 h-20 md:w-28 md:h-28 object-cover rounded-full border-2 border-gray-700"
           onError={(e) => { e.currentTarget.style.display = 'none' }}
         />
       </div>
@@ -84,15 +84,36 @@ function Footer({ profile }) {
   )
 }
 
-export default function Sidebar() {
+// On mobile the sidebar is a fixed-position drawer (translated off-screen
+// by default, slid in when `drawerOpen` flips). On md+ it's a static column.
+// A close button is rendered inside the drawer for mobile so users who opened
+// it but changed their mind have an obvious exit besides the backdrop.
+export default function Sidebar({ drawerOpen = false, onClose }) {
   const { profile } = useAuth()
   const role = profile?.role
   // Admins always get the full internal sidebar regardless of their role.
   const customerView = isCustomer(role) && !profile?.is_admin
 
+  const shellClasses =
+    'fixed inset-y-0 left-0 z-40 w-64 bg-sidebar text-sidebar-text ' +
+    'overflow-y-auto flex flex-col transform transition-transform duration-200 ease-out ' +
+    'md:static md:translate-x-0 md:w-60 md:h-full md:z-auto ' +
+    (drawerOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0')
+
+  const MobileCloseButton = () => (
+    <button
+      onClick={onClose}
+      className="md:hidden absolute top-2 right-2 w-8 h-8 rounded-md hover:bg-sidebar-hover flex items-center justify-center text-gray-400 hover:text-white"
+      aria-label="Close menu"
+    >
+      ✕
+    </button>
+  )
+
   if (customerView) {
     return (
-      <aside className="w-60 bg-sidebar text-sidebar-text h-full overflow-y-auto flex flex-col">
+      <aside className={shellClasses}>
+        <MobileCloseButton />
         <Brand />
         <Section title="Fleet">
           <Item to="/portal" label="Fleet Dashboard" />
@@ -111,7 +132,8 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="w-60 bg-sidebar text-sidebar-text h-full overflow-y-auto flex flex-col">
+    <aside className={shellClasses}>
+      <MobileCloseButton />
       <Brand />
       <Section title="Quick Links">
         <Item to="/home" label="My Garage" />

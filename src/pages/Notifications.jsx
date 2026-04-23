@@ -57,9 +57,9 @@ export default function Notifications() {
   }
 
   return (
-    <div className="p-6 pb-20">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-semibold text-gray-800">Notifications</h1>
+    <div className="p-4 sm:p-6 pb-20">
+      <div className="flex items-center justify-between mb-4 gap-2">
+        <h1 className="text-xl sm:text-2xl font-semibold text-gray-800">Notifications</h1>
         <div className="flex items-center gap-3">
           {unread > 0 && (
             <button onClick={markAll} className="text-xs text-brand hover:underline">

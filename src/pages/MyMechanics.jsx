@@ -37,8 +37,8 @@ export default function MyMechanics() {
   const today = new Date()
 
   return (
-    <div className="p-6 pb-20">
-      <h1 className="text-2xl font-semibold text-gray-800 mb-4">My Mechanics</h1>
+    <div className="p-4 sm:p-6 pb-20">
+      <h1 className="text-xl sm:text-2xl font-semibold text-gray-800 mb-4">My Mechanics</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
         <StatCard label="Mechanics w/ Assigned Vehicle"  value={mechsWith.length}    tone="dark" icon={<Icon name="user" className="w-5 h-5" />} />

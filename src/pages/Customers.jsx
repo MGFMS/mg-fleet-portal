@@ -30,11 +30,11 @@ export default function Customers() {
   }, [search, type, vehicles])
 
   return (
-    <div className="p-6 pb-20">
-      <h1 className="text-2xl font-semibold text-gray-800 mb-4">Customers</h1>
+    <div className="p-4 sm:p-6 pb-20">
+      <h1 className="text-xl sm:text-2xl font-semibold text-gray-800 mb-4">Customers</h1>
 
       <div className="bg-white rounded-md border">
-        <div className="flex items-center justify-between px-4 py-3 border-b gap-4">
+        <div className="flex items-center justify-between px-3 sm:px-4 py-3 border-b gap-2 sm:gap-4 flex-wrap">
           <div className="flex items-center gap-2">
             <select value={type} onChange={(e) => setType(e.target.value)} className="border rounded px-2 py-1 text-sm">
               <option value="ALL">All customers</option>

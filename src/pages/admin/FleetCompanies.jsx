@@ -109,10 +109,10 @@ export default function FleetCompanies() {
   }
 
   return (
-    <div className="p-6">
-      <div className="flex items-start justify-between mb-4 gap-4">
+    <div className="p-4 sm:p-6">
+      <div className="flex items-start justify-between mb-4 gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-800">Fleet Companies</h1>
+          <h1 className="text-xl sm:text-2xl font-semibold text-gray-800">Fleet Companies</h1>
           <p className="text-gray-600 text-sm mt-1">
             Manage the companies whose fleets are serviced through the portal.
           </p>
@@ -215,8 +215,8 @@ export default function FleetCompanies() {
         </form>
       )}
 
-      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-white rounded-lg shadow-sm border overflow-x-auto">
+        <table className="min-w-full text-sm whitespace-nowrap">
           <thead className="bg-gray-50 text-gray-600 text-xs uppercase tracking-wider">
             <tr>
               <th className="px-4 py-3 text-left font-medium">Name</th>

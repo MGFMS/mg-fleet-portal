@@ -93,8 +93,8 @@ export default function ServiceReceiptCreate() {
   }
 
   return (
-    <form onSubmit={submit} className="p-6 pb-32 space-y-4">
-      <h1 className="text-2xl font-semibold text-gray-800">Create Service Receipt</h1>
+    <form onSubmit={submit} className="p-4 sm:p-6 pb-32 space-y-4">
+      <h1 className="text-xl sm:text-2xl font-semibold text-gray-800">Create Service Receipt</h1>
 
       {error && <div className="bg-red-50 border border-red-200 text-red-800 rounded px-3 py-2 text-sm">Save failed: {error}</div>}
 
@@ -230,7 +230,7 @@ function LineRow({ row, onChange, onAdd, onRemove, isLast }) {
           placeholder="Search parts / service..."
         />
         {showAuto && filtered.length > 0 && (
-          <div className="absolute top-full left-0 z-20 mt-1 w-80 bg-white border rounded-md shadow-xl text-xs">
+          <div className="absolute top-full left-0 z-20 mt-1 w-[90vw] max-w-sm sm:w-80 bg-white border rounded-md shadow-xl text-xs">
             {filtered.map((p) => (
               <button type="button" key={p.code} onClick={() => pick(p)} className="block w-full text-left px-3 py-2 hover:bg-sky-50 border-b last:border-b-0">
                 <div className="font-semibold text-gray-800">{p.name} ({p.code})</div>

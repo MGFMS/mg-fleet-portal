@@ -193,11 +193,11 @@ export default function PmsRecord() {
     }
   }
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading appointment…</div>
+  if (loading) return <div className="p-4 sm:p-6 text-sm text-gray-500">Loading appointment…</div>
 
   return (
     <div className="pb-24">
-      <div className="p-4 flex items-center justify-between">
+      <div className="p-3 sm:p-4 flex items-center justify-between gap-2 flex-wrap">
         <button onClick={() => navigate(-1)} className="text-sm text-gray-500 hover:underline">← Back</button>
         {appointment ? (
           <div className="text-xs text-gray-500">

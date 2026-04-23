@@ -22,8 +22,8 @@ export default function ServiceReceiptDetails() {
     return () => { cancelled = true }
   }, [code])
 
-  if (loading) return <div className="p-6 text-gray-500">Loading…</div>
-  if (!receipt) return <div className="p-6 text-gray-500">Receipt {code} not found.</div>
+  if (loading) return <div className="p-4 sm:p-6 text-gray-500">Loading…</div>
+  if (!receipt) return <div className="p-4 sm:p-6 text-gray-500">Receipt {code} not found.</div>
 
   const doCancel = async () => {
     if (!receipt.id) return
@@ -40,7 +40,7 @@ export default function ServiceReceiptDetails() {
   }
 
   return (
-    <div className="p-6 pb-20 space-y-4">
+    <div className="p-4 sm:p-6 pb-20 space-y-4">
       <div className="flex items-center gap-2 text-sm text-gray-500">
         <button onClick={() => navigate(-1)} className="hover:underline">← Back</button>
       </div>

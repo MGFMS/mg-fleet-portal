@@ -36,14 +36,14 @@ export default function ServiceReceipts() {
   }, [rows, search, status])
 
   return (
-    <div className="p-6 pb-20">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-semibold text-gray-800">Service Receipts {branch}</h1>
-        {source === 'dummy' && <span className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5">Demo data</span>}
+    <div className="p-4 sm:p-6 pb-20">
+      <div className="flex items-center justify-between mb-4 gap-2">
+        <h1 className="text-xl sm:text-2xl font-semibold text-gray-800 truncate">Service Receipts {branch}</h1>
+        {source === 'dummy' && <span className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5 shrink-0">Demo data</span>}
       </div>
 
       <div className="bg-white rounded-md border">
-        <div className="flex items-center justify-between px-4 py-3 border-b">
+        <div className="flex items-center justify-between px-3 sm:px-4 py-3 border-b gap-2 flex-wrap">
           <div className="text-sm text-gray-600">
             Show{' '}
             <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))} className="border rounded px-2 py-1 mx-1 text-sm">

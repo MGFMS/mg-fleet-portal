@@ -15,7 +15,7 @@ function timeAgo(ts) {
   return `${Math.floor(diff / 86400)}d`
 }
 
-export default function Topbar() {
+export default function Topbar({ onMenuClick }) {
   const { user, profile, logout } = useAuth()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
@@ -63,20 +63,32 @@ export default function Topbar() {
   const recent = notifs.slice(0, 5)
 
   return (
-    <header className="bg-sidebar text-white h-14 flex items-center px-4 justify-between border-b border-gray-800">
-      <form onSubmit={handleSearch} className="flex-1 max-w-md">
+    <header className="bg-sidebar text-white h-14 flex items-center px-2 sm:px-4 gap-2 sm:gap-3 justify-between border-b border-gray-800 sticky top-0 z-20">
+      {/* Hamburger — mobile only; md+ shows the persistent sidebar instead */}
+      <button
+        type="button"
+        onClick={onMenuClick}
+        className="md:hidden w-9 h-9 shrink-0 rounded-md hover:bg-sidebar-hover flex items-center justify-center"
+        aria-label="Open menu"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+          <path d="M3 6h18M3 12h18M3 18h18" strokeLinecap="round" />
+        </svg>
+      </button>
+
+      <form onSubmit={handleSearch} className="flex-1 min-w-0 max-w-md">
         <div className="relative">
           <input
             type="text"
             value={plate}
             onChange={(e) => setPlate(e.target.value)}
-            placeholder="Search plate number..."
+            placeholder="Search plate…"
             className="w-full bg-sidebar-hover text-white placeholder-gray-500 px-3 py-1.5 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-brand"
           />
         </div>
       </form>
 
-      <div className="flex items-center gap-2 ml-4">
+      <div className="flex items-center gap-1 sm:gap-2 shrink-0">
         <div className="relative" ref={bellRef}>
           <button
             onClick={() => setBellOpen((v) => !v)}
@@ -91,7 +103,7 @@ export default function Topbar() {
             )}
           </button>
           {bellOpen && (
-            <div className="absolute right-0 mt-2 w-80 bg-white text-gray-800 rounded-md shadow-lg z-50 overflow-hidden">
+            <div className="absolute right-0 mt-2 w-[90vw] max-w-sm bg-white text-gray-800 rounded-md shadow-lg z-50 overflow-hidden">
               <div className="px-3 py-2 border-b flex items-center justify-between">
                 <span className="text-sm font-semibold">Notifications</span>
                 <button

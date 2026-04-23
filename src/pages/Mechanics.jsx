@@ -17,14 +17,14 @@ export default function Mechanics() {
   }, [search])
 
   return (
-    <div className="p-6 pb-20">
-      <h1 className="text-2xl font-semibold text-gray-800 mb-4">Mechanics</h1>
+    <div className="p-4 sm:p-6 pb-20">
+      <h1 className="text-xl sm:text-2xl font-semibold text-gray-800 mb-4">Mechanics</h1>
 
       <div className="bg-white rounded-md border">
-        <div className="flex items-center justify-between px-4 py-3 border-b">
+        <div className="flex items-center justify-between px-3 sm:px-4 py-3 border-b gap-2 flex-wrap">
           <span className="text-sm text-gray-500">{rows.length} mechanics</span>
-          <div className="flex items-center gap-2">
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name..." className="border rounded px-2 py-1 text-sm w-48" />
+          <div className="flex items-center gap-2 flex-wrap">
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name..." className="border rounded px-2 py-1 text-sm w-36 sm:w-48" />
             <button className="bg-brand hover:bg-brand-dark text-white px-3 py-1.5 rounded text-sm font-semibold flex items-center gap-1">
               <Icon name="plus" className="w-4 h-4" />
               Add Mechanic
