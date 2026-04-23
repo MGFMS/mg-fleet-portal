@@ -423,20 +423,22 @@ function ItemRow({ item, result, setResult }) {
   const showPart = result.resultCode === 'replaced'
 
   return (
-    <div className="px-4 py-3">
-      <div className="flex items-start justify-between gap-3">
+    <div className="px-3 sm:px-4 py-3">
+      {/* Mobile (<lg): stacked — label on top, result buttons wrap below.
+          Desktop (lg+): side-by-side like before, label left, buttons right. */}
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between lg:gap-3">
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium text-gray-800">
+          <div className="text-sm font-semibold text-gray-800 break-words">
             {item.label}
-            {item.isCritical && <span className="ml-1 text-[10px] text-red-600 font-semibold">CRITICAL</span>}
-            {item.holdUnit && <span className="ml-1 text-[10px] text-red-900 font-semibold">HOLD</span>}
-            {item.isCompliance && <span className="ml-1 text-[10px] text-blue-600 font-semibold">COMPLIANCE</span>}
+            {item.isCritical && <span className="ml-1.5 text-[10px] text-red-600 font-bold">CRITICAL</span>}
+            {item.holdUnit && <span className="ml-1.5 text-[10px] text-red-900 font-bold">HOLD</span>}
+            {item.isCompliance && <span className="ml-1.5 text-[10px] text-blue-600 font-bold">COMPLIANCE</span>}
           </div>
           {item.thresholdLabel && (
             <div className="text-[11px] text-gray-500 mt-0.5">{item.thresholdLabel}</div>
           )}
         </div>
-        <div className="flex flex-wrap gap-1 justify-end">
+        <div className="mt-2 lg:mt-0 grid grid-cols-5 gap-1 lg:flex lg:flex-wrap lg:justify-end lg:gap-1">
           {RESULT_OPTIONS.map((rc) => {
             const active = result.resultCode === rc
             const cfg = RC[rc]
@@ -445,9 +447,10 @@ function ItemRow({ item, result, setResult }) {
                 key={rc}
                 type="button"
                 onClick={() => setResult(item.code, { resultCode: active ? undefined : rc })}
-                className={`text-[11px] px-2 py-1 rounded font-semibold transition ${active ? `${cfg.bg} text-white` : `${cfg.light} hover:opacity-80`}`}
+                className={`text-[10px] sm:text-[11px] px-1 sm:px-2 py-2 sm:py-1 rounded-lg lg:rounded font-bold transition leading-tight text-center ${active ? `${cfg.bg} text-white` : `${cfg.light} hover:opacity-80`}`}
               >
-                {cfg.icon} {cfg.label}
+                <span className="block lg:inline">{cfg.icon}</span>
+                <span className="block lg:inline lg:ml-0.5">{cfg.label}</span>
               </button>
             )
           })}
