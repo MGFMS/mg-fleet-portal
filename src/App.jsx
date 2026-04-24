@@ -30,6 +30,8 @@ import Quotations from './pages/Quotations'
 import ServiceReceipts from './pages/ServiceReceipts'
 import ServiceReceiptCreate from './pages/ServiceReceiptCreate'
 import ServiceReceiptDetails from './pages/ServiceReceiptDetails'
+import BranchInvoices from './pages/BranchInvoices'
+import BranchInvoiceDetails from './pages/BranchInvoiceDetails'
 
 import FleetCompanies from './pages/admin/FleetCompanies'
 import Users from './pages/admin/Users'
@@ -79,6 +81,10 @@ export default function App() {
           <Route path="/service-receipts"        element={<ProtectedRoute allowedCategories={INTERNAL}><ServiceReceipts /></ProtectedRoute>} />
           <Route path="/service-receipts/create" element={<ProtectedRoute allowedCategories={INTERNAL}><ServiceReceiptCreate /></ProtectedRoute>} />
           <Route path="/service-receipts/:code"  element={<ProtectedRoute allowedCategories={BOTH}><ServiceReceiptDetails /></ProtectedRoute>} />
+
+          {/* Branch Invoices (branch → MG Fleet, Round 12) */}
+          <Route path="/branch-invoices"       element={<ProtectedRoute allowedCategories={INTERNAL}><BranchInvoices /></ProtectedRoute>} />
+          <Route path="/branch-invoices/:code" element={<ProtectedRoute allowedCategories={INTERNAL}><BranchInvoiceDetails /></ProtectedRoute>} />
 
           <Route path="/reports"               element={<ProtectedRoute allowedCategories={INTERNAL}><Reports /></ProtectedRoute>} />
 

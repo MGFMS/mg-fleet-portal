@@ -129,6 +129,7 @@ export default function Sidebar() {
         <Item to="/service-receipts" label="Service Receipts" />
         <Item to="/quotations" label="Service Quotations" />
         <Item to="/quotations/unbilled" label="Services for Quotation" />
+        <Item to="/branch-invoices" label="Branch Invoices" />
         <Item to="/reports" label="Reports" />
       </Section>
       <Section title="Data Management">
