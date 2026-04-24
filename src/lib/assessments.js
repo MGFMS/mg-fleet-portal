@@ -55,6 +55,32 @@ export async function getLatestAssessmentForPlate(plateRaw) {
   }
 }
 
+// Every assessment for a plate, newest first. Used by finance features
+// (Round 12 invoicing gate) to check for a post-repair reassessment. Same
+// scan-and-filter pattern as getOutstandingDeferredForPlate — fine at
+// fleet-customer scale, fold into an indexed `header.plate` field later
+// if the assessments collection grows past ~low thousands.
+export async function getAssessmentsForPlate(plateRaw) {
+  if (!db || !plateRaw) return []
+  const plate = String(plateRaw).toUpperCase().replace(/\s+/g, '')
+  try {
+    const snap = await getDocs(query(
+      collection(db, 'assessments'),
+      orderBy('submittedAt', 'desc'),
+    ))
+    const out = []
+    for (const d of snap.docs) {
+      const data = d.data()
+      const p = String(data?.header?.plate || '').toUpperCase().replace(/\s+/g, '')
+      if (p === plate) out.push({ _docId: d.id, ...data })
+    }
+    return out
+  } catch (err) {
+    console.warn('[assessments] getAssessmentsForPlate failed:', err?.message || err)
+    return []
+  }
+}
+
 // All outstanding (not-yet-resolved) deferred assessments for a plate. Used
 // when submitting a Re-Assessment that comes back active/conditional — we
 // stamp resolvedByRwa/resolvedAt on these so the fleet view stops flagging
