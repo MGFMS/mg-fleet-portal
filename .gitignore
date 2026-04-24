@@ -15,3 +15,10 @@ _reference_dotnet/
 
 # Firebase CLI cache
 .firebase/
+
+# Proprietary catalog data — live xlsx source for parts/services/consumables,
+# kept local only. Ingested into Firestore at Round 13.
+MG Cavite Database/
+
+# One-off inspection / migration scripts — not shipped with the app.
+scripts/

@@ -1,17 +1,320 @@
 // Service Receipts + Quotations. Portal-owned collection; not shared with
 // mg-fms. Quotations use the same collection with a different `kind` field and
 // status flow — a receipt ("kind: receipt") is the final billing doc; a
-// quotation ("kind: quotation") is the pre-billing estimate.
+// quotation ("kind: quotation") is the pre-billing estimate that goes through
+// the 3-party approval chain (admin supervisor → MG Fleet manager → fleet
+// client, with a clarification-comment loop back to the supervisor).
 
 import {
-  addDoc, collection, doc, getDoc, onSnapshot, orderBy, query,
+  addDoc, arrayUnion, collection, doc, getDoc, onSnapshot, orderBy, query,
   serverTimestamp, updateDoc, where,
 } from 'firebase/firestore'
 import { auth, db } from './firebase'
 import { SERVICE_RECEIPTS as DUMMY } from './dummyData'
 import { emitNotification, fetchContextDoc } from './notifications'
+import {
+  canApproveQuotations, canForwardToClient, canReviewAtBranch, isCustomer,
+} from './roles'
 
 const COLLECTION = 'serviceReceipts'
+
+// ── Quotation approval chain ──────────────────────────────────────────────
+//
+// DRAFT
+//   └→ FOR_MG_FLEET_REVIEW   (admin supervisor forwards)
+// FOR_MG_FLEET_REVIEW
+//   ├→ FOR_CLIENT_REVIEW     (MG Fleet manager forwards to client)
+//   └→ DRAFT                 (MG Fleet manager bounces back with a comment)
+// FOR_CLIENT_REVIEW
+//   ├→ APPROVED_FINAL        (client approves — repair unblocked)
+//   ├→ CLIENT_REJECTED       (client rejects — terminal for now)
+//   └→ CLIENT_CLARIFICATION  (client posts a question; bounces to supervisor)
+// CLIENT_CLARIFICATION
+//   └→ DRAFT                 (supervisor re-opens to address the question)
+//
+// Legacy docs from before Round 10 still carry OPEN / APPROVED / DISAPPROVED.
+// effectiveQuotationStatus() displays them as their new-chain equivalents; we
+// don't mutate old docs on read.
+export const QUOT_STATUS = Object.freeze({
+  DRAFT: 'DRAFT',
+  FOR_MG_FLEET_REVIEW: 'FOR_MG_FLEET_REVIEW',
+  FOR_CLIENT_REVIEW: 'FOR_CLIENT_REVIEW',
+  CLIENT_CLARIFICATION: 'CLIENT_CLARIFICATION',
+  CLIENT_REJECTED: 'CLIENT_REJECTED',
+  APPROVED_FINAL: 'APPROVED_FINAL',
+})
+
+const LEGACY_STATUS_MAP = Object.freeze({
+  OPEN: QUOT_STATUS.FOR_CLIENT_REVIEW,   // old Quotations.jsx showed Approve/Reject on OPEN → client was in the approver seat
+  APPROVED: QUOT_STATUS.APPROVED_FINAL,
+  DISAPPROVED: QUOT_STATUS.CLIENT_REJECTED,
+  REJECTED: QUOT_STATUS.CLIENT_REJECTED,
+})
+
+// Non-mutating display coercion. Use everywhere status is read for UI.
+export function effectiveQuotationStatus(quot) {
+  if (!quot) return null
+  const raw = quot.status
+  if (!raw) return QUOT_STATUS.DRAFT
+  return LEGACY_STATUS_MAP[raw] || raw
+}
+
+export const QUOT_STATUS_LABELS = Object.freeze({
+  [QUOT_STATUS.DRAFT]:                'Draft',
+  [QUOT_STATUS.FOR_MG_FLEET_REVIEW]:  'For MG Fleet Review',
+  [QUOT_STATUS.FOR_CLIENT_REVIEW]:    'For Client Review',
+  [QUOT_STATUS.CLIENT_CLARIFICATION]: 'Clarification Requested',
+  [QUOT_STATUS.CLIENT_REJECTED]:      'Rejected',
+  [QUOT_STATUS.APPROVED_FINAL]:       'Approved',
+})
+
+// Allowed next-statuses from each state. Used both by transition validation
+// and by the UI to know which buttons to show.
+const ALLOWED_NEXT = Object.freeze({
+  [QUOT_STATUS.DRAFT]:                [QUOT_STATUS.FOR_MG_FLEET_REVIEW],
+  [QUOT_STATUS.FOR_MG_FLEET_REVIEW]:  [QUOT_STATUS.FOR_CLIENT_REVIEW, QUOT_STATUS.DRAFT],
+  [QUOT_STATUS.FOR_CLIENT_REVIEW]:    [QUOT_STATUS.APPROVED_FINAL, QUOT_STATUS.CLIENT_REJECTED, QUOT_STATUS.CLIENT_CLARIFICATION],
+  [QUOT_STATUS.CLIENT_CLARIFICATION]: [QUOT_STATUS.DRAFT],
+  [QUOT_STATUS.CLIENT_REJECTED]:      [QUOT_STATUS.DRAFT],
+  [QUOT_STATUS.APPROVED_FINAL]:       [],
+})
+
+// Short codes for the audit log entries (drives notification wording too).
+// Not the same shape as status — some actions don't change status alone.
+export const QUOT_ACTION = Object.freeze({
+  FORWARD_TO_MGFLEET: 'forward_to_mgfleet',
+  FORWARD_TO_CLIENT:  'forward_to_client',
+  BOUNCE_TO_SUPERVISOR: 'bounce_to_supervisor',
+  CLIENT_APPROVE:     'client_approve',
+  CLIENT_REJECT:      'client_reject',
+  CLIENT_CLARIFY:     'client_clarify',
+  REOPEN_TO_DRAFT:    'reopen_to_draft',
+  COMMENT:            'comment',
+})
+
+function actorRoleFor(profile) {
+  if (!profile) return 'unknown'
+  if (profile.is_admin && profile.role === 'mg_fleet_manager') return 'mg_fleet_manager'
+  if (canForwardToClient(profile.role)) return 'mg_fleet_manager'
+  if (profile.is_admin) return 'mg_fleet_manager' // shared-admin escape hatch acts as MG Fleet mgr
+  if (canReviewAtBranch(profile.role)) return 'admin_supervisor'
+  if (canApproveQuotations(profile.role) || isCustomer(profile.role)) return 'fleet_client'
+  return profile.role || 'unknown'
+}
+
+export function availableQuotationActions(quot, profile) {
+  if (!quot || !profile) return []
+  const status = effectiveQuotationStatus(quot)
+  const actor = actorRoleFor(profile)
+  const out = []
+
+  const push = (key, label, nextStatus, tone = 'primary', requiresText = false) =>
+    out.push({ key, label, nextStatus, tone, requiresText })
+
+  if (status === QUOT_STATUS.DRAFT) {
+    if (actor === 'admin_supervisor' || actor === 'mg_fleet_manager') {
+      push(QUOT_ACTION.FORWARD_TO_MGFLEET, 'Forward to MG Fleet', QUOT_STATUS.FOR_MG_FLEET_REVIEW)
+    }
+  } else if (status === QUOT_STATUS.FOR_MG_FLEET_REVIEW) {
+    if (actor === 'mg_fleet_manager') {
+      push(QUOT_ACTION.FORWARD_TO_CLIENT, 'Forward to client', QUOT_STATUS.FOR_CLIENT_REVIEW)
+      push(QUOT_ACTION.BOUNCE_TO_SUPERVISOR, 'Bounce back to supervisor', QUOT_STATUS.DRAFT, 'ghost', true)
+    }
+  } else if (status === QUOT_STATUS.FOR_CLIENT_REVIEW) {
+    if (actor === 'fleet_client') {
+      push(QUOT_ACTION.CLIENT_APPROVE, 'Approve', QUOT_STATUS.APPROVED_FINAL, 'primary')
+      push(QUOT_ACTION.CLIENT_REJECT, 'Reject', QUOT_STATUS.CLIENT_REJECTED, 'danger', true)
+      push(QUOT_ACTION.CLIENT_CLARIFY, 'Request clarification', QUOT_STATUS.CLIENT_CLARIFICATION, 'ghost', true)
+    }
+  } else if (status === QUOT_STATUS.CLIENT_CLARIFICATION) {
+    if (actor === 'admin_supervisor' || actor === 'mg_fleet_manager') {
+      push(QUOT_ACTION.REOPEN_TO_DRAFT, 'Re-open as draft to address', QUOT_STATUS.DRAFT)
+    }
+  } else if (status === QUOT_STATUS.CLIENT_REJECTED) {
+    if (actor === 'admin_supervisor' || actor === 'mg_fleet_manager') {
+      push(QUOT_ACTION.REOPEN_TO_DRAFT, 'Re-open as draft', QUOT_STATUS.DRAFT, 'ghost')
+    }
+  }
+
+  return out
+}
+
+function profileDisplayName(profile) {
+  return (
+    profile?.user_fullname ||
+    profile?.user_name ||
+    profile?.name ||
+    profile?.email ||
+    'Unknown'
+  )
+}
+
+// Core writer for the chain. All chain transitions go through here so the
+// audit trail, comments, and notifications stay consistent.
+//
+// payload: { action, nextStatus, text?, byProfile }
+//   action    — one of QUOT_ACTION. Drives notification wording.
+//   nextStatus — one of QUOT_STATUS. Validated against ALLOWED_NEXT.
+//   text      — required for clarify / reject / bounce. Becomes both the
+//               audit note AND a comment thread entry so the whole
+//               conversation is visible in one place.
+//   byProfile — current user's profile (needed for byName + actor role).
+export async function transitionQuotation(id, { action, nextStatus, text, byProfile }) {
+  if (!db) throw new Error('Firestore not configured.')
+  if (!id) throw new Error('Missing quotation id.')
+  if (!action || !nextStatus) throw new Error('Missing action or nextStatus.')
+
+  const snap = await getDoc(doc(db, COLLECTION, id))
+  if (!snap.exists()) throw new Error('Quotation not found.')
+  const quot = { id: snap.id, ...snap.data() }
+  if (quot.kind !== 'quotation') throw new Error('Only quotations use the approval chain.')
+
+  const currentStatus = effectiveQuotationStatus(quot)
+  const allowed = ALLOWED_NEXT[currentStatus] || []
+  if (!allowed.includes(nextStatus)) {
+    throw new Error(`Cannot go from ${currentStatus} to ${nextStatus}.`)
+  }
+
+  const uid = auth?.currentUser?.uid || null
+  const byName = profileDisplayName(byProfile)
+  const byRole = actorRoleFor(byProfile)
+  const note = (text || '').trim() || null
+  const nowIso = new Date().toISOString()
+
+  const auditEntry = {
+    action,
+    from: currentStatus,
+    to: nextStatus,
+    by: uid,
+    byName,
+    byRole,
+    at: nowIso,
+    note,
+  }
+
+  const writes = {
+    status: nextStatus,
+    audit: arrayUnion(auditEntry),
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+  }
+
+  // If the action carries a note (bounce, reject, clarify), mirror it into
+  // the comment thread so all three parties see the conversation in one spot.
+  if (note) {
+    writes.comments = arrayUnion({
+      kind: 'action',
+      action,
+      by: uid,
+      byName,
+      byRole,
+      at: nowIso,
+      text: note,
+    })
+  }
+
+  await updateDoc(doc(db, COLLECTION, id), writes)
+
+  // Notifications per action. Audience routing (branch vs. company) is
+  // already handled by emitNotification — we set branch/company on the
+  // notification doc and let watchNotifications filter.
+  const code = quot.code || id
+  const plate = quot.plateNo || ''
+  const notifBase = {
+    plateNo: plate,
+    receiptId: id,
+    link: `/service-receipts/${code}`,
+    branch: quot.branch || null,
+  }
+
+  if (action === QUOT_ACTION.FORWARD_TO_MGFLEET) {
+    emitNotification({
+      ...notifBase,
+      kind: 'approval',
+      title: `Quotation ${code} forwarded for MG Fleet review`,
+      body: `${plate} · awaiting ${byRole === 'admin_supervisor' ? 'MG Fleet manager' : 'review'}`.trim(),
+      company: null, // admin-audience only at this hop
+    })
+  } else if (action === QUOT_ACTION.FORWARD_TO_CLIENT) {
+    emitNotification({
+      ...notifBase,
+      kind: 'approval',
+      title: `Quotation ${code} — awaiting your approval`,
+      body: `${plate} · forwarded by MG Fleet`,
+      company: quot.company || null, // target the client
+    })
+  } else if (action === QUOT_ACTION.BOUNCE_TO_SUPERVISOR) {
+    emitNotification({
+      ...notifBase,
+      kind: 'approval',
+      title: `Quotation ${code} returned for revision`,
+      body: note || 'MG Fleet requested changes',
+      company: null,
+    })
+  } else if (action === QUOT_ACTION.CLIENT_APPROVE) {
+    emitNotification({
+      ...notifBase,
+      kind: 'approval',
+      title: `Quotation ${code} — APPROVED by client`,
+      body: `${plate} · repair unblocked`,
+      company: null, // client just clicked; notify MG Fleet + branch
+    })
+  } else if (action === QUOT_ACTION.CLIENT_REJECT) {
+    emitNotification({
+      ...notifBase,
+      kind: 'approval',
+      title: `Quotation ${code} rejected by client`,
+      body: note || null,
+      company: null,
+    })
+  } else if (action === QUOT_ACTION.CLIENT_CLARIFY) {
+    emitNotification({
+      ...notifBase,
+      kind: 'approval',
+      title: `Client requested clarification — ${code}`,
+      body: note || 'See comment thread.',
+      company: null, // alert MG Fleet + supervisor
+    })
+  } else if (action === QUOT_ACTION.REOPEN_TO_DRAFT) {
+    emitNotification({
+      ...notifBase,
+      kind: 'approval',
+      title: `Quotation ${code} re-opened as draft`,
+      body: `${plate} · ready for supervisor revision`,
+      company: null,
+    })
+  }
+
+  return { id, from: currentStatus, to: nextStatus, at: nowIso }
+}
+
+// Free-text comment, posted without changing status. Any party in the chain
+// can add one. Shows up in the same thread as action-notes.
+export async function addQuotationComment(id, { text, byProfile }) {
+  if (!db) throw new Error('Firestore not configured.')
+  const trimmed = (text || '').trim()
+  if (!trimmed) throw new Error('Comment text is required.')
+
+  const uid = auth?.currentUser?.uid || null
+  const nowIso = new Date().toISOString()
+  const byName = profileDisplayName(byProfile)
+  const byRole = actorRoleFor(byProfile)
+
+  await updateDoc(doc(db, COLLECTION, id), {
+    comments: arrayUnion({
+      kind: 'comment',
+      by: uid,
+      byName,
+      byRole,
+      at: nowIso,
+      text: trimmed,
+    }),
+    updatedAt: serverTimestamp(),
+    updatedBy: uid,
+  })
+
+  return { id, at: nowIso }
+}
 
 export function watchReceipts(options, cb) {
   if (!db) { cb({ rows: DUMMY, source: 'dummy', loading: false, error: null }); return () => {} }
@@ -37,6 +340,45 @@ export function watchReceipts(options, cb) {
       cb({ rows: DUMMY, source: 'error', loading: false, error: err })
     },
   )
+}
+
+// Live subscription by code. Used by ServiceReceiptDetails so the approval
+// chain's status + audit trail + comments update in real time without the
+// user having to reload — especially important while two parties are going
+// back and forth over the comment thread.
+export function watchReceiptByCode(code, cb) {
+  if (!db || !code) { cb({ receipt: null, source: 'unconfigured' }); return () => {} }
+  // Fall back to direct-id fetch if not found by code — covers the rare case
+  // of someone pasting a Firestore doc id in the URL.
+  const q = query(collection(db, COLLECTION), where('code', '==', code))
+  let unsubCode = null
+  let unsubId = null
+  try {
+    unsubCode = onSnapshot(q, async (snap) => {
+      if (!snap.empty) {
+        const d = snap.docs[0]
+        cb({ receipt: { id: d.id, ...d.data() }, source: 'firestore' })
+        return
+      }
+      // No match by code — try as doc id, one-shot only so we don't double-listen.
+      try {
+        const direct = await getDoc(doc(db, COLLECTION, code))
+        if (direct.exists()) {
+          cb({ receipt: { id: direct.id, ...direct.data() }, source: 'firestore' })
+        } else {
+          cb({ receipt: null, source: 'firestore' })
+        }
+      } catch (err) {
+        cb({ receipt: null, source: 'error', error: err })
+      }
+    }, (err) => {
+      console.warn('[serviceReceipts] watchReceiptByCode failed:', err)
+      cb({ receipt: null, source: 'error', error: err })
+    })
+  } catch (err) {
+    cb({ receipt: null, source: 'error', error: err })
+  }
+  return () => { try { unsubCode?.() } catch {} try { unsubId?.() } catch {} }
 }
 
 export async function getReceipt(codeOrId) {
@@ -96,7 +438,22 @@ export async function createReceipt(kind, data) {
     estimatedTotal: laborTotal + materialsTotal,
     missingParts: Number(data.missingParts) || 0,
     notes: data.notes || '',
-    status: kind === 'quotation' ? 'OPEN' : 'OPEN',
+    // Quotations start at DRAFT and walk the approval chain; receipts stay
+    // on the legacy OPEN/PAID/CANCELLED flow until Round 12.
+    status: kind === 'quotation' ? QUOT_STATUS.DRAFT : 'OPEN',
+    audit: kind === 'quotation'
+      ? [{
+          action: 'create',
+          from: null,
+          to: QUOT_STATUS.DRAFT,
+          by: uid,
+          byName: profileDisplayName(data.byProfile || null),
+          byRole: actorRoleFor(data.byProfile || null),
+          at: new Date().toISOString(),
+          note: null,
+        }]
+      : [],
+    comments: [],
     createdAt: serverTimestamp(),
     dateCreated: new Date().toISOString().slice(0, 10),
     createdBy: uid,
@@ -108,14 +465,18 @@ export async function createReceipt(kind, data) {
   emitNotification({
     kind: kind === 'quotation' ? 'quotation' : 'service',
     title: kind === 'quotation'
-      ? `Quotation ${code} created for ${plate}`
+      ? `Quotation ${code} drafted for ${plate}`
       : `Receipt ${code} issued for ${plate}`,
-    body: kind === 'quotation' && fleet ? 'Awaiting client approval' : null,
+    // Quotations start as drafts — client doesn't see them until the
+    // supervisor + MG Fleet manager forward through the approval chain.
+    body: kind === 'quotation' ? 'Draft — awaiting supervisor forward' : null,
     plateNo: plate,
     receiptId: ref.id,
-    link: kind === 'quotation' ? '/quotations' : `/service-receipts/${code}`,
+    link: kind === 'quotation' ? `/service-receipts/${code}` : `/service-receipts/${code}`,
     branch,
-    company: fleet ? data.company : null,
+    // Receipts notify the fleet client directly; quotations stay internal
+    // until forwarded through the chain.
+    company: kind === 'quotation' ? null : (fleet ? data.company : null),
   })
   return { id: ref.id, code }
 }
