@@ -106,32 +106,38 @@ export function availableQuotationActions(quot, profile) {
   if (!quot || !profile) return []
   const status = effectiveQuotationStatus(quot)
   const actor = actorRoleFor(profile)
+  // is_admin is the portal-wide escape hatch: the shared-admin account plays
+  // every role on both sides of the chain. Without this, a single admin
+  // can't test end-to-end (and in prod, the admin acts as both MG Fleet mgr
+  // AND client approver for their own company). Admin sees every action
+  // permitted at the current status.
+  const isAdminEscape = Boolean(profile.is_admin)
   const out = []
 
   const push = (key, label, nextStatus, tone = 'primary', requiresText = false) =>
     out.push({ key, label, nextStatus, tone, requiresText })
 
   if (status === QUOT_STATUS.DRAFT) {
-    if (actor === 'admin_supervisor' || actor === 'mg_fleet_manager') {
+    if (isAdminEscape || actor === 'admin_supervisor' || actor === 'mg_fleet_manager') {
       push(QUOT_ACTION.FORWARD_TO_MGFLEET, 'Forward to MG Fleet', QUOT_STATUS.FOR_MG_FLEET_REVIEW)
     }
   } else if (status === QUOT_STATUS.FOR_MG_FLEET_REVIEW) {
-    if (actor === 'mg_fleet_manager') {
+    if (isAdminEscape || actor === 'mg_fleet_manager') {
       push(QUOT_ACTION.FORWARD_TO_CLIENT, 'Forward to client', QUOT_STATUS.FOR_CLIENT_REVIEW)
       push(QUOT_ACTION.BOUNCE_TO_SUPERVISOR, 'Bounce back to supervisor', QUOT_STATUS.DRAFT, 'ghost', true)
     }
   } else if (status === QUOT_STATUS.FOR_CLIENT_REVIEW) {
-    if (actor === 'fleet_client') {
+    if (isAdminEscape || actor === 'fleet_client') {
       push(QUOT_ACTION.CLIENT_APPROVE, 'Approve', QUOT_STATUS.APPROVED_FINAL, 'primary')
       push(QUOT_ACTION.CLIENT_REJECT, 'Reject', QUOT_STATUS.CLIENT_REJECTED, 'danger', true)
       push(QUOT_ACTION.CLIENT_CLARIFY, 'Request clarification', QUOT_STATUS.CLIENT_CLARIFICATION, 'ghost', true)
     }
   } else if (status === QUOT_STATUS.CLIENT_CLARIFICATION) {
-    if (actor === 'admin_supervisor' || actor === 'mg_fleet_manager') {
+    if (isAdminEscape || actor === 'admin_supervisor' || actor === 'mg_fleet_manager') {
       push(QUOT_ACTION.REOPEN_TO_DRAFT, 'Re-open as draft to address', QUOT_STATUS.DRAFT)
     }
   } else if (status === QUOT_STATUS.CLIENT_REJECTED) {
-    if (actor === 'admin_supervisor' || actor === 'mg_fleet_manager') {
+    if (isAdminEscape || actor === 'admin_supervisor' || actor === 'mg_fleet_manager') {
       push(QUOT_ACTION.REOPEN_TO_DRAFT, 'Re-open as draft', QUOT_STATUS.DRAFT, 'ghost')
     }
   }
