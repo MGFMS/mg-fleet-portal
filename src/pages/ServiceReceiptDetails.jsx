@@ -11,9 +11,10 @@ import { useAuth } from '../context/AuthContext'
 import { formatMoney } from '../lib/dummyData'
 import {
   QUOT_STATUS, QUOT_STATUS_LABELS, QUOT_ACTION,
-  availableQuotationActions, canEditQuotation, effectiveQuotationStatus,
-  transitionQuotation, updateQuotationItems, addQuotationComment,
-  setReceiptStatus, watchReceiptByCode,
+  availableQuotationActions, canEditQuotation, canAddRevision,
+  currentRevisionRound, effectiveQuotationStatus,
+  transitionQuotation, updateQuotationItems, addQuotationRevision,
+  addQuotationComment, setReceiptStatus, watchReceiptByCode,
 } from '../lib/serviceReceipts'
 import Icon from '../components/ui/Icon'
 import PageHero from '../components/ui/PageHero'
@@ -55,10 +56,13 @@ function QuotationDetail({ quot, profile }) {
   const statusLabel = QUOT_STATUS_LABELS[status] || status
   const actions = availableQuotationActions(quot, profile)
   const editable = canEditQuotation(quot, profile)
+  const canRevise = canAddRevision(quot, profile)
+  const revision = currentRevisionRound(quot)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const [modalAction, setModalAction] = useState(null)
   const [editMode, setEditMode] = useState(false)
+  const [revisionMode, setRevisionMode] = useState(false)
 
   const onAction = async (action) => {
     if (action.requiresText) { setModalAction(action); return }
@@ -86,15 +90,20 @@ function QuotationDetail({ quot, profile }) {
   return (
     <div className="pb-32">
       <PageHero
-        eyebrow="QUOTATION"
+        eyebrow={revision > 1 ? `QUOTATION · REV ${revision}` : 'QUOTATION'}
         title={quot.code}
         subtitle={`${quot.plateNo} · ${quot.brandModel || 'Vehicle'}`}
         right={<TotalChip value={quot.estimatedTotal} />}
       />
 
       <div className="px-3 sm:px-6 pt-4 space-y-4">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <StatusPill status={statusLabel} />
+          {revision > 1 && (
+            <span className="text-[10px] font-bold tracking-widest uppercase bg-amber-100 text-amber-800 border border-amber-200 rounded-full px-2 py-0.5">
+              Revision {revision}
+            </span>
+          )}
           {quot.company && (
             <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500 truncate">
               {quot.company}
@@ -129,6 +138,23 @@ function QuotationDetail({ quot, profile }) {
           </div>
         )}
 
+        {canRevise && !revisionMode && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-center gap-3">
+            <div className="text-2xl leading-none">➕</div>
+            <div className="flex-1 text-xs text-amber-800">
+              <div className="font-bold">Scope grew during repair?</div>
+              <div>Add new items here — they'll be forwarded up the chain for the client to approve before work on the delta starts.</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setRevisionMode(true)}
+              className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-4 py-2 rounded-full shadow shrink-0"
+            >
+              Add revision
+            </button>
+          </div>
+        )}
+
         {editMode ? (
           <EditableItems
             quot={quot}
@@ -136,9 +162,16 @@ function QuotationDetail({ quot, profile }) {
             onCancel={() => setEditMode(false)}
             onSaved={() => setEditMode(false)}
           />
+        ) : revisionMode ? (
+          <RevisionEditor
+            quot={quot}
+            profile={profile}
+            onCancel={() => setRevisionMode(false)}
+            onSaved={() => setRevisionMode(false)}
+          />
         ) : (
           <>
-            <LineItemsCard receipt={quot} />
+            <GroupedItemsCard quot={quot} />
             <TotalsCard receipt={quot} />
           </>
         )}
@@ -177,6 +210,252 @@ function QuotationDetail({ quot, profile }) {
         />
       )}
     </div>
+  )
+}
+
+// ── Line items grouped by revision round ────────────────────────────────
+//
+// Each revision is its own block so the client sees exactly what's new this
+// round vs. what they already approved in previous rounds. Items without a
+// revisionRound stamp (legacy or original) fall into round 1.
+
+function GroupedItemsCard({ quot }) {
+  const items = quot.items || []
+  if (items.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl border border-dashed p-5 text-center text-gray-400 text-sm">
+        No line items.
+      </div>
+    )
+  }
+
+  // Bucket by round.
+  const groups = new Map()
+  for (const i of items) {
+    const r = Number(i.revisionRound) || 1
+    if (!groups.has(r)) groups.set(r, [])
+    groups.get(r).push(i)
+  }
+  const rounds = [...groups.keys()].sort((a, b) => a - b)
+  const latestRound = rounds[rounds.length - 1]
+  const quotStatus = effectiveQuotationStatus(quot)
+  const latestIsPending = latestRound > 1 && quotStatus !== QUOT_STATUS.APPROVED_FINAL
+
+  return (
+    <section className="space-y-3">
+      {rounds.map((round) => {
+        const roundItems = groups.get(round)
+        const subtotal = roundItems.reduce((s, i) => s + (i.subTotal || (i.qty * i.unitCost) || 0), 0)
+        const isLatestPending = round === latestRound && latestIsPending
+        const isOriginal = round === 1
+        return (
+          <div
+            key={round}
+            className={`rounded-2xl border overflow-hidden ${isLatestPending ? 'border-amber-300 ring-1 ring-amber-200 bg-white' : 'border-gray-200 bg-white'}`}
+          >
+            <div className={`px-4 py-2.5 border-b flex items-center justify-between gap-2 ${
+              isLatestPending ? 'bg-amber-50 border-amber-200' : isOriginal ? 'bg-green-50 border-green-100' : 'bg-gray-50'
+            }`}>
+              <div className="flex items-center gap-2 min-w-0">
+                <span className={`text-[10px] font-black tracking-widest uppercase px-2 py-0.5 rounded-full ${
+                  isLatestPending ? 'bg-amber-600 text-white'
+                  : isOriginal ? 'bg-green-600 text-white'
+                  : 'bg-gray-700 text-white'
+                }`}>
+                  Rev {round}
+                </span>
+                <span className={`text-[11px] font-semibold truncate ${
+                  isLatestPending ? 'text-amber-800'
+                  : isOriginal ? 'text-green-800'
+                  : 'text-gray-600'
+                }`}>
+                  {isLatestPending
+                    ? `Pending approval · ${roundItems.length} new item${roundItems.length === 1 ? '' : 's'}`
+                    : isOriginal
+                      ? `Original${roundItems.length > 1 ? ` · ${roundItems.length} items` : ''}${round < latestRound ? ' (approved)' : ''}`
+                      : `Approved · ${roundItems.length} item${roundItems.length === 1 ? '' : 's'}`}
+                </span>
+              </div>
+              <span className={`text-sm font-black whitespace-nowrap ${isLatestPending ? 'text-amber-700' : 'text-gray-800'}`}>
+                {formatMoney(subtotal)}
+              </span>
+            </div>
+
+            {/* Mobile: card stack */}
+            <div className="lg:hidden divide-y">
+              {roundItems.map((item, i) => <GroupedItemRow key={i} item={item} />)}
+            </div>
+
+            {/* Desktop: table */}
+            <div className="hidden lg:block overflow-x-auto">
+              <table className="min-w-full text-sm whitespace-nowrap">
+                <thead className="bg-gray-50 text-xs uppercase tracking-wider text-gray-600">
+                  <tr>
+                    <th className="px-4 py-2 text-left font-medium">Type</th>
+                    <th className="px-4 py-2 text-left font-medium">Qty</th>
+                    <th className="px-4 py-2 text-left font-medium">Description</th>
+                    <th className="px-4 py-2 text-right font-medium">Unit Cost</th>
+                    <th className="px-4 py-2 text-right font-medium">Sub Total</th>
+                    {round > 1 && <th className="px-4 py-2 text-left font-medium">Added</th>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {roundItems.map((item, i) => (
+                    <tr key={i} className="bg-white">
+                      <td className="px-4 py-2">{item.type}</td>
+                      <td className="px-4 py-2">{item.qty}</td>
+                      <td className="px-4 py-2 uppercase">{item.description}</td>
+                      <td className="px-4 py-2 text-right">{formatMoney(item.unitCost)}</td>
+                      <td className="px-4 py-2 text-right font-semibold">{formatMoney(item.subTotal || item.qty * item.unitCost)}</td>
+                      {round > 1 && (
+                        <td className="px-4 py-2 text-[11px] text-gray-500">
+                          {item.addedByName || '—'}{item.addedAt ? ` · ${shortDate(item.addedAt)}` : ''}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      })}
+    </section>
+  )
+}
+
+function GroupedItemRow({ item }) {
+  return (
+    <div className="p-3">
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${item.type === 'Labor' ? 'bg-sky-600 text-white' : 'bg-gray-700 text-white'}`}>
+          {item.type}
+        </span>
+        <span className="text-xs text-gray-500 font-bold">× {item.qty}</span>
+      </div>
+      <div className="text-sm font-semibold text-gray-900 uppercase break-words">
+        {item.description || '—'}
+      </div>
+      <div className="mt-1.5 flex items-baseline justify-between">
+        <span className="text-[11px] text-gray-500">
+          {formatMoney(item.unitCost)} × {item.qty}
+        </span>
+        <span className="text-base font-black text-gray-900">{formatMoney(item.subTotal || item.qty * item.unitCost)}</span>
+      </div>
+      {item.addedByName && item.revisionRound > 1 && (
+        <div className="mt-1 text-[10px] text-gray-400">
+          added by {item.addedByName}{item.addedAt ? ` · ${shortDate(item.addedAt)}` : ''}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function shortDate(iso) {
+  const d = new Date(iso)
+  if (isNaN(d)) return ''
+  return d.toLocaleString('en-PH', { month: 'short', day: 'numeric' })
+}
+
+// ── Revision editor — add NEW items to an approved quotation ────────────
+
+function RevisionEditor({ quot, profile, onCancel, onSaved }) {
+  const [items, setItems] = useState([{ type: 'Parts/Materials', qty: 1, description: '', unitCost: 0 }])
+  const [notes, setNotes] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
+
+  const deltaTotal = items.reduce((s, i) => s + ((Number(i.qty) || 0) * (Number(i.unitCost) || 0)), 0)
+  const nextRound = currentRevisionRound(quot) + 1
+
+  const update = (idx, patch) => setItems(items.map((r, i) => i === idx ? { ...r, ...patch } : r))
+  const remove = (idx) => setItems(items.filter((_, i) => i !== idx))
+  const add = () => setItems([...items, { type: 'Parts/Materials', qty: 1, description: '', unitCost: 0 }])
+
+  const save = async () => {
+    if (saving) return
+    const cleaned = items.filter((i) => String(i.description || '').trim())
+    if (cleaned.length === 0) { setError('Add at least one item with a description.'); return }
+    setSaving(true); setError(null)
+    try {
+      await addQuotationRevision(quot.id, { newItems: cleaned, notes, byProfile: profile })
+      onSaved?.()
+    } catch (err) {
+      console.error('[quotation] revision save failed:', err)
+      setError(err.message || String(err))
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="bg-white rounded-2xl border overflow-hidden">
+      <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-center justify-between">
+        <div>
+          <div className="text-[11px] uppercase tracking-widest font-bold text-amber-800">Drafting Revision {nextRound}</div>
+          <div className="text-[10px] text-amber-700">Existing items stay as approved. Add only what's new.</div>
+        </div>
+        <span className="text-[10px] font-bold text-amber-700">{items.length} new</span>
+      </div>
+
+      <div className="p-3 space-y-3">
+        {items.map((row, i) => (
+          <EditRow key={i} row={row} index={i}
+            onChange={(patch) => update(i, patch)}
+            onRemove={() => remove(i)}
+            canRemove={items.length > 1}
+          />
+        ))}
+        <button
+          type="button"
+          onClick={add}
+          className="w-full bg-white border-2 border-dashed border-gray-300 text-gray-600 hover:border-brand hover:text-brand rounded-2xl py-3 font-bold text-sm flex items-center justify-center gap-1.5"
+        >
+          <Icon name="plus" className="w-4 h-4" />
+          Add item
+        </button>
+
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-1">Notes for this revision</div>
+          <textarea
+            rows={2}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            className="input text-sm"
+            placeholder="Why is this needed? (e.g. discovered worn tie-rod during brake job)"
+          />
+        </div>
+
+        <div className="bg-amber-50 rounded-xl px-4 py-3 flex items-center justify-between">
+          <span className="text-[11px] font-bold uppercase tracking-widest text-amber-800">Revision delta</span>
+          <span className="text-xl font-black text-amber-700">+{formatMoney(deltaTotal)}</span>
+        </div>
+
+        {error && <div className="text-[11px] text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">Save failed: {error}</div>}
+
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={saving}
+            className="bg-white border-2 border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40 font-bold text-sm px-4 py-3 rounded-xl active:scale-95 transition-transform"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            className="bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white font-bold text-sm px-4 py-3 rounded-xl shadow active:scale-95 transition-transform"
+          >
+            {saving ? 'Saving…' : `Submit revision ${nextRound}`}
+          </button>
+        </div>
+
+        <div className="text-[10px] text-gray-500 text-center">
+          Submitting will reset the chain to <strong>MG Fleet review</strong>. The client will see Revision {nextRound} as pending alongside the already-approved items.
+        </div>
+      </div>
+    </section>
   )
 }
 
@@ -587,6 +866,7 @@ function auditVerb(action, to) {
     case QUOT_ACTION.CLIENT_CLARIFY:        return 'requested clarification — bounced to draft'
     case QUOT_ACTION.REOPEN_TO_DRAFT:       return 're-opened as draft'
     case 'edit_items':                      return 'revised the line items'
+    case 'add_revision':                    return 'added a mid-repair revision'
     case 'create':                          return 'created the quotation'
     default:                                return `changed status to ${to || '—'}`
   }
@@ -600,6 +880,7 @@ function auditIconGlyph(action) {
     case QUOT_ACTION.BOUNCE_TO_SUPERVISOR: return '↩'
     case QUOT_ACTION.REOPEN_TO_DRAFT:      return '↻'
     case 'edit_items':                     return '✏'
+    case 'add_revision':                   return '➕'
     default:                               return '→'
   }
 }
@@ -611,6 +892,7 @@ function auditIconTone(action) {
     case QUOT_ACTION.CLIENT_CLARIFY:       return 'bg-amber-500 text-white'
     case QUOT_ACTION.BOUNCE_TO_SUPERVISOR: return 'bg-amber-500 text-white'
     case 'edit_items':                     return 'bg-amber-600 text-white'
+    case 'add_revision':                   return 'bg-amber-600 text-white'
     default:                               return 'bg-brand text-white'
   }
 }
