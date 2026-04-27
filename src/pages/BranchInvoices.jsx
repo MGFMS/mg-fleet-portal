@@ -210,7 +210,11 @@ export default function BranchInvoices() {
                             ? <span className="text-gray-400 text-xs">—</span>
                             : <span className="font-bold text-gray-900">{formatMoney(balance)}</span>}
                       </td>
-                      <td className="px-4 py-2 text-right"><StatusPill status={r._eff} size="sm" /></td>
+                      <td className="px-4 py-2 text-right">
+                        <Link to={`/branch-invoices/${r.code}`} aria-label={`Open ${r.code}`} className="inline-block hover:opacity-80">
+                          <StatusPill status={r._eff} size="sm" />
+                        </Link>
+                      </td>
                     </tr>
                   )
                 })}
