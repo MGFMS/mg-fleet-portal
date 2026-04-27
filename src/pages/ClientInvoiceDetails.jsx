@@ -12,6 +12,7 @@ import { formatMoney, formatDate, formatDateTime } from '../lib/dummyData'
 import { isCustomer } from '../lib/roles'
 import { profileCompany } from '../lib/vehicles'
 import { CREDIT_NOTE_KIND } from '../lib/creditNotes'
+import { MG_FLEET_IDENTITY } from '../lib/billingIdentity'
 import CreditNotesSection from '../components/CreditNotesSection'
 import PrintInvoice from '../components/PrintInvoice'
 import {
@@ -149,6 +150,10 @@ export default function ClientInvoiceDetails() {
 
         {!customerView && <LinkedDocsCard invoice={invoice} />}
 
+        {customerView && invoice.status === CLIENT_INVOICE_STATUS.OPEN && balance > 0 && (
+          <HowToPayCard invoice={invoice} balance={balance} />
+        )}
+
         <CustomerCard invoice={invoice} />
 
         <ItemsCard invoice={invoice} />
@@ -170,17 +175,26 @@ export default function ClientInvoiceDetails() {
         className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-[0_-4px_12px_rgba(0,0,0,0.05)]"
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0)' }}
       >
-        <div className={`px-3 sm:px-6 py-3 grid gap-2 ${customerView ? 'grid-cols-1' : 'grid-cols-3'}`}>
+        <div className={`px-3 sm:px-6 py-3 grid gap-2 ${customerView ? 'grid-cols-1' : 'grid-cols-2 sm:grid-cols-4'}`}>
           <button
             type="button"
             onClick={() => window.print()}
             className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm px-4 py-3 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform"
+            title="Opens the browser print dialog. Pick 'Save as PDF' as the destination to download a file."
           >
             <Icon name="print" className="w-4 h-4" />
-            Print
+            Print / PDF
           </button>
           {!customerView && (
             <>
+              <button
+                type="button"
+                disabled
+                className="bg-gray-100 text-gray-400 font-bold text-sm px-4 py-3 rounded-xl flex items-center justify-center gap-2 cursor-not-allowed"
+                title="Email-to-client is being wired in next session. For now: Print → Save as PDF → attach to your own email."
+              >
+                ✉ Email · soon
+              </button>
               <button
                 type="button"
                 onClick={() => canPay && setPayModalOpen(true)}
@@ -263,6 +277,45 @@ function LinkedDocsCard({ invoice }) {
             </Link>
           ) : <span className="text-gray-400">—</span>}
         </div>
+      </div>
+    </div>
+  )
+}
+
+function HowToPayCard({ invoice, balance }) {
+  // Only renders for fleet customers viewing their own OPEN invoice.
+  // Reads remit-to from billingIdentity (placeholder values until the
+  // user fills them in). Encourages the print → bank-deposit flow that
+  // the printable invoice already supports.
+  const bank = MG_FLEET_IDENTITY.bank
+  const support = MG_FLEET_IDENTITY.email
+  return (
+    <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl overflow-hidden">
+      <div className="bg-emerald-600 text-white px-4 py-2.5">
+        <div className="text-[10px] font-bold uppercase tracking-widest opacity-90">How to pay</div>
+        <div className="font-black text-sm mt-0.5">{formatMoney(balance)} due — settle to keep your account current</div>
+      </div>
+      <div className="p-4 space-y-3 text-sm">
+        <ol className="list-decimal pl-5 text-xs text-emerald-900 space-y-1.5">
+          <li>Hit <strong>Print / Save as PDF</strong> below for the BIR-style copy with full bank details and breakdown.</li>
+          <li>Bank-deposit, transfer, or pay online to MG Fleet using the account info on the printed invoice.</li>
+          <li>Email the proof of payment to <span className="font-mono font-bold">{support || 'finance@mgfleet.ph'}</span> with the invoice code in the subject.</li>
+          <li>Once verified, the invoice flips to <strong>PAID</strong> here automatically.</li>
+        </ol>
+
+        {bank && (
+          <div className="bg-white rounded-xl p-3 border border-emerald-200">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Quick-reference: pay to</div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[12px] mt-1">
+              <div><span className="text-gray-500">Bank:</span> <strong>{bank.bankName}</strong></div>
+              <div><span className="text-gray-500">Account:</span> <strong>{bank.accountName}</strong></div>
+              <div className="col-span-2"><span className="text-gray-500">No.:</span> <span className="font-mono font-bold">{bank.accountNumber}</span></div>
+            </div>
+            <div className="text-[10px] text-gray-500 mt-2 italic">
+              Some fields above will say "TODO" until your account admin fills in the bank info. The printed invoice always has the up-to-date copy.
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

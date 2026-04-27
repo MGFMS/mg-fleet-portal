@@ -11,6 +11,7 @@ import OverdueChip from '../components/ui/OverdueChip'
 import Icon from '../components/ui/Icon'
 import PageHero, { HeroStat } from '../components/ui/PageHero'
 import ClientBillingSnapshot from '../components/ClientBillingSnapshot'
+import OverduePortalAlert from '../components/OverduePortalAlert'
 
 export default function Portal() {
   const { profile } = useAuth()
@@ -63,6 +64,8 @@ export default function Portal() {
           Read blocked — check Firestore rules for your role.
         </div>
       )}
+
+      <OverduePortalAlert company={company} />
 
       {/* Quick stats row — compact, tappable ideally */}
       <div className="px-3 sm:px-6 -mt-3 relative z-10">

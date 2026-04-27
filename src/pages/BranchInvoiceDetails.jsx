@@ -147,9 +147,10 @@ export default function BranchInvoiceDetails() {
             type="button"
             onClick={() => window.print()}
             className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm px-4 py-3 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform"
+            title="Opens the browser print dialog. Pick 'Save as PDF' as the destination to download a file."
           >
             <Icon name="print" className="w-4 h-4" />
-            Print
+            Print / PDF
           </button>
           <button
             type="button"
