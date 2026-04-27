@@ -15,8 +15,8 @@ import { useAuth } from '../context/AuthContext'
 import { fetchContextDoc } from '../lib/notifications'
 import { watchVehicles } from '../lib/vehicles'
 import {
-  ACTION_CFG, ALL_ITEMS, ASSESS_TYPES, CATEGORIES, DEFECT_CODES, PRE_DISPATCH_ITEMS,
-  RC, SC, calcHealthScore, getAction, getActiveItems, healthColor,
+  ACTION_CFG, ALL_ITEMS, ASSESS_TYPES, CATEGORIES, DEFECT_CODES, LABOR_TYPES,
+  PRE_DISPATCH_ITEMS, RC, SC, calcHealthScore, getAction, getActiveItems, healthColor,
 } from '../lib/mgfms-catalog'
 import {
   createAssessment, runEngine,
@@ -78,6 +78,11 @@ export default function AssessmentForm() {
     type: 'Initial', date: new Date().toISOString().slice(0, 10),
   })
   const [itemResults, setItemResults] = useState(() => initialDraft?.itemResults || {})
+  // Round 18 — labor selection. `labors` is a code→bool map for the
+  // checklist; on submit we serialize to an array on the assessment doc.
+  // `otherLabor` is a free-text rider bound to LBR_OTHER.
+  const [labors, setLabors] = useState(() => initialDraft?.labors || {})
+  const [otherLabor, setOtherLabor] = useState(() => initialDraft?.otherLabor || '')
   const [openCat, setOpenCat] = useState(CATEGORIES[0]?.code || null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
@@ -151,11 +156,11 @@ export default function AssessmentForm() {
     if (loading) return
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(() => {
-      saveDraft(appointmentId, { header, itemResults, prevAssessment, reassessMode })
+      saveDraft(appointmentId, { header, itemResults, prevAssessment, reassessMode, labors, otherLabor })
       setDraftSavedAt(Date.now())
     }, 600)
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
-  }, [appointmentId, header, itemResults, prevAssessment, reassessMode, loading])
+  }, [appointmentId, header, itemResults, prevAssessment, reassessMode, labors, otherLabor, loading])
 
   // When the type flips to Re-Assessment, fetch the latest unresolved
   // assessment for this plate. If there isn't one, we can't do a proper
@@ -265,10 +270,21 @@ export default function AssessmentForm() {
 
   const canSubmit = answered > 0 && header.plate && header.technician && !saving
 
+  // Serialize the labor picker state for persistence. Order follows
+  // LABOR_TYPES so the saved doc reads top-to-bottom in catalog order.
+  const buildLaborsPayload = () => {
+    const picked = LABOR_TYPES.filter((lt) => labors[lt.code]).map((lt) => ({
+      code: lt.code, label: lt.label,
+    }))
+    const other = labors.LBR_OTHER && otherLabor.trim() ? otherLabor.trim() : null
+    return { labors: picked, otherLabor: other }
+  }
+
   const onSubmit = async () => {
     if (!canSubmit) return
     setSaving(true); setError(null)
     try {
+      const { labors: laborsPayload, otherLabor: otherLaborPayload } = buildLaborsPayload()
       const { rwaNumber } = await createAssessment({
         appointmentId,
         header: {
@@ -276,6 +292,8 @@ export default function AssessmentForm() {
           odometer: header.odometer ? Number(header.odometer) : null,
         },
         itemResults,
+        labors: laborsPayload,
+        otherLabor: otherLaborPayload,
       })
       // Submit succeeded — draft is no longer needed.
       clearDraft(appointmentId)
@@ -496,6 +514,14 @@ export default function AssessmentForm() {
           ))}
         </div>
       )}
+
+      {/* ── Labor / service required (Round 18) ─────────────────── */}
+      <LaborPicker
+        labors={labors}
+        setLabors={setLabors}
+        otherLabor={otherLabor}
+        setOtherLabor={setOtherLabor}
+      />
 
       {/* ── Sticky submit bar ───────────────────────────────────── */}
       <div
@@ -950,6 +976,62 @@ function ItemRow({ item, result, setResult }) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// Labor / service-required checklist. The selection is what feeds the
+// smart-quote prefill: one Labor line per ticked entry. Bundles (e.g. a
+// PMS row covers oil/oil-filter/air-filter together) are the whole point —
+// the assessor decides the level of granularity here.
+function LaborPicker({ labors, setLabors, otherLabor, setOtherLabor }) {
+  const toggle = (code) => setLabors((prev) => ({ ...prev, [code]: !prev[code] }))
+  const pickedCount = Object.values(labors || {}).filter(Boolean).length
+
+  return (
+    <div className="m-3 sm:m-4 bg-white border rounded-xl overflow-hidden">
+      <div className="px-3 sm:px-4 py-3 border-b bg-gray-50 flex items-center justify-between">
+        <div>
+          <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Labor / Service Required</div>
+          <div className="text-[11px] text-gray-500 mt-0.5">
+            Pick the labor types this job needs. Drives the quotation line items.
+          </div>
+        </div>
+        <span className="text-[11px] font-bold text-gray-500 bg-white border rounded-full px-2 py-0.5">
+          {pickedCount} picked
+        </span>
+      </div>
+      <div className="divide-y">
+        {LABOR_TYPES.map((lt) => {
+          const checked = !!labors?.[lt.code]
+          return (
+            <div key={lt.code}>
+              <button
+                type="button"
+                onClick={() => toggle(lt.code)}
+                className={`w-full flex items-center gap-3 px-3 sm:px-4 py-3 text-left transition-colors ${checked ? 'bg-gray-50' : 'hover:bg-gray-50/60'}`}
+              >
+                <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${checked ? 'bg-gray-800 border-gray-800' : 'border-gray-300'}`}>
+                  {checked && <span className="text-white text-[10px] font-black">✓</span>}
+                </div>
+                <span className="text-base shrink-0">{lt.icon}</span>
+                <span className={`text-sm ${checked ? 'font-bold text-gray-800' : 'text-gray-600'}`}>{lt.label}</span>
+              </button>
+              {lt.code === 'LBR_OTHER' && checked && (
+                <div className="px-3 sm:px-4 pb-3 pt-1 bg-gray-50">
+                  <textarea
+                    rows={2}
+                    placeholder="Describe the labor (e.g. fabricate bracket, hand-clean rust)…"
+                    value={otherLabor}
+                    onChange={(e) => setOtherLabor(e.target.value)}
+                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-gray-500 resize-none bg-white"
+                  />
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

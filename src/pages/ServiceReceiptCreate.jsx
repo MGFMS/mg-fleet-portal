@@ -105,13 +105,18 @@ export default function ServiceReceiptCreate({ kind = 'receipt' }) {
           return
         }
         setItems(suggestions)
-        const parts = [
-          `${summary.criticalCount} critical finding${summary.criticalCount === 1 ? '' : 's'}`,
-        ]
+        const parts = []
+        if (summary.laborCount > 0) {
+          parts.push(`${summary.laborCount} labor type${summary.laborCount === 1 ? '' : 's'} declared`)
+        }
+        parts.push(`${summary.criticalCount} critical finding${summary.criticalCount === 1 ? '' : 's'}`)
         if (summary.holdCount > 0) parts.push(`${summary.holdCount} hold-unit`)
+        const sourceNote = summary.laborSource === 'derived'
+          ? ' Labor lines were derived per item (no labors declared on this assessment).'
+          : ''
         setPrefillBanner({
           tone: 'success',
-          text: `Prefilled ${suggestions.length} line${suggestions.length === 1 ? '' : 's'} from ${summary.rwa || fromAssessment} (${parts.join(', ')}). Review and set unit costs before submitting.`,
+          text: `Prefilled ${suggestions.length} line${suggestions.length === 1 ? '' : 's'} from ${summary.rwa || fromAssessment} (${parts.join(', ')}).${sourceNote} Review and set unit costs before submitting.`,
         })
       } catch (err) {
         console.error('[quote prefill] failed:', err)

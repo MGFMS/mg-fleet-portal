@@ -257,7 +257,7 @@ export function generateRwa(now = Date.now()) {
 //       type, date }
 //
 // returns { id, rwaNumber, classification }
-export async function createAssessment({ appointmentId, header, itemResults, pmsData }) {
+export async function createAssessment({ appointmentId, header, itemResults, pmsData, labors, otherLabor }) {
   if (!db) throw new Error('Firestore not configured.')
 
   const now = Date.now()
@@ -271,6 +271,13 @@ export async function createAssessment({ appointmentId, header, itemResults, pms
     itemResults: { ...(itemResults || {}) },
     classification,
     pmsData: pmsData || null,
+    // Round 18 — labor types declared at assessment time. Used by the
+    // smart-quote prefill to bundle multiple inspection findings under
+    // one labor line (e.g. several PMS items → one "Preventive
+    // Maintenance Service" line). Optional — older assessments without
+    // this field still work; the prefill falls back to per-item labor.
+    labors: Array.isArray(labors) ? labors : null,
+    otherLabor: otherLabor || null,
     fmsStatus: 'synced',
     submittedAt: new Date(now).toISOString(),
     appointmentId: appointmentId || null, // portal-only linkage
