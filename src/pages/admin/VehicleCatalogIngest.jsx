@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   cleanBrandRow, cleanModelRow, getAllBrands, getAllModels,
-  upsertBrands, upsertModels, watchBrands, watchModels,
+  upsertBrands, upsertModels,
 } from '../../lib/refVehicles'
 import PageHero, { HeroStat } from '../../components/ui/PageHero'
 
@@ -26,22 +26,46 @@ export default function VehicleCatalogIngest() {
   const [ingestResult, setIngestResult] = useState(null)
   const [ingestError, setIngestError] = useState(null)
 
-  // Live counts of what's already in Firestore so the admin can see the
-  // delta before clicking Ingest.
+  // Existing-data view is opt-in (Round 20.3). The auto-mount watcher
+  // turned out to be a freeze suspect, so we now wait for an explicit
+  // click. Empty arrays mean "haven't loaded" — analysis treats them
+  // the same as "nothing in Firestore" which is fine for the diff.
   const [existingBrands, setExistingBrands] = useState([])
   const [existingModels, setExistingModels] = useState([])
   const [readError, setReadError] = useState(null)
+  const [loadingExisting, setLoadingExisting] = useState(false)
+  const [existingLoaded, setExistingLoaded] = useState(false)
+
+  const loadExisting = async () => {
+    setLoadingExisting(true); setReadError(null)
+    console.log('[ingest] loadExisting → starting')
+    try {
+      const [brands, models] = await Promise.all([getAllBrands(), getAllModels()])
+      console.log('[ingest] loadExisting → got', brands.length, 'brands +', models.length, 'models')
+      setExistingBrands(brands)
+      setExistingModels(models)
+      setExistingLoaded(true)
+    } catch (err) {
+      console.error('[ingest] loadExisting failed:', err)
+      setReadError(err.message || String(err))
+    } finally {
+      setLoadingExisting(false)
+    }
+  }
+
+  // Heartbeat — proves the page's render loop is alive.
+  const [tick, setTick] = useState(0)
   useEffect(() => {
-    const u1 = watchBrands((res) => {
-      if (res.source === 'error') setReadError(`refVehicleBrands read failed: ${res.error?.code || res.error?.message || 'unknown'}`)
-      else setExistingBrands(res.rows)
-    })
-    const u2 = watchModels({}, (res) => {
-      if (res.source === 'error') setReadError((prev) => prev || `refVehicleModels read failed: ${res.error?.code || res.error?.message || 'unknown'}`)
-      else setExistingModels(res.rows)
-    })
-    return () => { u1?.(); u2?.() }
+    const id = setInterval(() => setTick((t) => t + 1), 1000)
+    return () => clearInterval(id)
   }, [])
+
+  // Log every state transition so we can see in DevTools where things
+  // get stuck. Only logs when a value actually changes.
+  useEffect(() => { console.log('[ingest] brandsRaw set', brandsRaw?.length ?? null, 'rows') }, [brandsRaw])
+  useEffect(() => { console.log('[ingest] modelsRaw set', modelsRaw?.length ?? null, 'rows') }, [modelsRaw])
+  useEffect(() => { console.log('[ingest] parsing =', parsing) }, [parsing])
+  useEffect(() => { console.log('[ingest] ingesting =', ingesting) }, [ingesting])
 
   // Yield to the browser between steps so React paints the progress
   // indicator instead of locking the screen during the synchronous parts
@@ -179,18 +203,36 @@ export default function VehicleCatalogIngest() {
       <PageHero
         eyebrow="ADMIN"
         title="Cavite Vehicle Catalog Ingest"
-        subtitle={`${existingBrands.length} make${existingBrands.length === 1 ? '' : 's'} · ${existingModels.length} model${existingModels.length === 1 ? '' : 's'} currently in Firestore`}
-        right={<HeroStat value={existingBrands.length} label="MAKES" tone="solid" />}
+        subtitle={existingLoaded
+          ? `${existingBrands.length} make${existingBrands.length === 1 ? '' : 's'} · ${existingModels.length} model${existingModels.length === 1 ? '' : 's'} currently in Firestore`
+          : `Page alive · uptime ${tick}s · click "Load existing" to read what's already in Firestore`}
+        right={<HeroStat value={existingLoaded ? existingBrands.length : '—'} label="MAKES" tone="solid" />}
       />
 
       <div className="px-3 sm:px-6 pt-4 space-y-4">
         <div className="bg-sky-50 border border-sky-200 text-sky-900 text-xs sm:text-sm rounded-xl px-3 py-2.5">
           <div className="font-bold mb-1">How this works</div>
           <ol className="list-decimal pl-4 space-y-1">
-            <li>Pick the two xlsx files from <span className="font-mono">MG Cavite Database/</span> — VMAKES first, then VMODELS.</li>
-            <li>Review the preview. Anything flagged (duplicates, missing fields, models pointing at unknown makes) gets skipped, not silently included.</li>
+            <li>Pick the two xlsx files from <span className="font-mono">MG Cavite Database/</span> — or use a CSV / paste JSON.</li>
+            <li>Review the preview. Anything flagged (duplicates, missing fields, orphan models) is skipped, not silently included.</li>
             <li>Click Ingest. Re-running is safe — rows already in Firestore are updated, not duplicated.</li>
           </ol>
+        </div>
+
+        <div className="bg-white rounded-2xl border p-3 flex items-center justify-between gap-3">
+          <div className="text-xs text-gray-700">
+            {existingLoaded
+              ? <>Existing in Firestore — <strong>{existingBrands.length}</strong> brands, <strong>{existingModels.length}</strong> models.</>
+              : 'Click to read what is already in Firestore (so the preview can show diffs).'}
+          </div>
+          <button
+            type="button"
+            onClick={loadExisting}
+            disabled={loadingExisting || ingesting}
+            className="bg-gray-900 hover:bg-black disabled:opacity-40 text-white text-xs font-bold px-4 py-2 rounded-lg shrink-0"
+          >
+            {loadingExisting ? 'Loading…' : (existingLoaded ? 'Reload existing' : 'Load existing')}
+          </button>
         </div>
 
         {readError && (
