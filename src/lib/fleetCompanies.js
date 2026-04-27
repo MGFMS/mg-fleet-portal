@@ -29,12 +29,16 @@ export function watchFleetCompanies(onNext, onError) {
   )
 }
 
+const VALID_PAYMENT_TERMS = ['CASH', 'NET_30', 'NET_60', 'NET_90']
+
 function normalizeWritable(data) {
+  const terms = String(data.paymentTerms || 'NET_30').toUpperCase()
   const payload = {
     name: (data.name || '').trim(),
     code: (data.code || '').trim().toUpperCase(),
     contactEmail: (data.contactEmail || '').trim(),
     contactPhone: (data.contactPhone || '').trim(),
+    paymentTerms: VALID_PAYMENT_TERMS.includes(terms) ? terms : 'NET_30',
     isActive: data.isActive !== false,
   }
   if (!payload.name) throw new Error('Company name is required.')
