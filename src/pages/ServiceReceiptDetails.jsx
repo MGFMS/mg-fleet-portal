@@ -25,6 +25,7 @@ import Icon from '../components/ui/Icon'
 import PageHero from '../components/ui/PageHero'
 import StatusPill from '../components/ui/StatusPill'
 import LineItemCard from '../components/LineItemCard'
+import LineItemRow, { LineItemHeader } from '../components/LineItemRow'
 
 export default function ServiceReceiptDetails() {
   const { code } = useParams()
@@ -642,16 +643,40 @@ function RevisionEditor({ quot, profile, onCancel, onSaved }) {
       </div>
 
       <div className="p-3 space-y-3">
-        {items.map((row, i) => (
-          <LineItemCard
-            key={i}
-            index={i}
-            row={row}
-            onChange={(patch) => update(i, patch)}
-            onRemove={() => remove(i)}
-            canRemove={items.length > 1}
-          />
-        ))}
+        {/* Mobile: card stack */}
+        <div className="lg:hidden space-y-3">
+          {items.map((row, i) => (
+            <LineItemCard
+              key={i}
+              index={i}
+              row={row}
+              onChange={(patch) => update(i, patch)}
+              onRemove={() => remove(i)}
+              canRemove={items.length > 1}
+            />
+          ))}
+        </div>
+
+        {/* Desktop: compact table */}
+        <div className="hidden lg:block bg-white rounded-2xl border overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <LineItemHeader />
+              <tbody className="divide-y">
+                {items.map((row, i) => (
+                  <LineItemRow
+                    key={i}
+                    row={row}
+                    onChange={(patch) => update(i, patch)}
+                    onRemove={() => remove(i)}
+                    canRemove={items.length > 1}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <button
           type="button"
           onClick={add}
@@ -754,17 +779,41 @@ function EditableItems({ quot, profile, onCancel, onSaved }) {
       </div>
 
       <div className="p-3 space-y-3">
-        {items.map((row, i) => (
-          <LineItemCard
-            key={i}
-            index={i}
-            row={row}
-            onChange={(patch) => updateRow(i, patch)}
-            onRemove={() => removeRow(i)}
-            canRemove={items.length > 1}
-            showRevisionTag
-          />
-        ))}
+        {/* Mobile: card stack */}
+        <div className="lg:hidden space-y-3">
+          {items.map((row, i) => (
+            <LineItemCard
+              key={i}
+              index={i}
+              row={row}
+              onChange={(patch) => updateRow(i, patch)}
+              onRemove={() => removeRow(i)}
+              canRemove={items.length > 1}
+              showRevisionTag
+            />
+          ))}
+        </div>
+
+        {/* Desktop: compact table — same as the create page */}
+        <div className="hidden lg:block bg-white rounded-2xl border overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <LineItemHeader />
+              <tbody className="divide-y">
+                {items.map((row, i) => (
+                  <LineItemRow
+                    key={i}
+                    row={row}
+                    onChange={(patch) => updateRow(i, patch)}
+                    onRemove={() => removeRow(i)}
+                    canRemove={items.length > 1}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <button
           type="button"
           onClick={addRow}

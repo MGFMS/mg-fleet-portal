@@ -19,7 +19,7 @@ import {
 import Icon from '../components/ui/Icon'
 import PageHero from '../components/ui/PageHero'
 import LineItemCard from '../components/LineItemCard'
-import { PARTS_CATALOG } from '../lib/partsCatalog'
+import LineItemRow, { LineItemHeader } from '../components/LineItemRow'
 
 // `kind` is "receipt" (default) or "quotation" — chosen by the route the user
 // arrived from. A quotation enters the Round 10 approval chain at DRAFT; a
@@ -295,25 +295,17 @@ export default function ServiceReceiptCreate({ kind = 'receipt' }) {
           <div className="hidden lg:block bg-white rounded-2xl border overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 text-xs uppercase tracking-wider text-gray-600">
-                  <tr>
-                    <th className="px-3 py-2 text-left font-medium">Type</th>
-                    <th className="px-3 py-2 text-left font-medium">Qty</th>
-                    <th className="px-3 py-2 text-left font-medium">Service / Parts / Materials</th>
-                    <th className="px-3 py-2 text-right font-medium">Unit Cost</th>
-                    <th className="px-3 py-2 text-right font-medium">Sub Total</th>
-                    <th className="px-3 py-2"></th>
-                  </tr>
-                </thead>
+                <LineItemHeader />
                 <tbody className="divide-y">
                   {items.map((row, i) => (
-                    <LineRow
+                    <LineItemRow
                       key={i}
                       row={row}
                       onChange={(patch) => updateRow(i, patch)}
                       onAdd={addRow}
                       onRemove={() => removeRow(i)}
-                      isLast={i === items.length - 1}
+                      showAddInRowAction={i === items.length - 1}
+                      canRemove={items.length > 1}
                     />
                   ))}
                 </tbody>
@@ -394,60 +386,3 @@ function Field({ label, hint, children, className = '' }) {
 }
 
 
-function LineRow({ row, onChange, onAdd, onRemove, isLast }) {
-  const subTotal = row.qty * row.unitCost
-  const [showAuto, setShowAuto] = useState(false)
-  const filtered = row.description
-    ? PARTS_CATALOG.filter((p) => p.name.toLowerCase().includes(row.description.toLowerCase())).slice(0, 6)
-    : []
-  const pick = (p) => { onChange({ description: p.name, unitCost: p.srp || p.unitCost }); setShowAuto(false) }
-
-  return (
-    <tr>
-      <td className="px-3 py-2">
-        <select value={row.type} onChange={(e) => onChange({ type: e.target.value })} className="input py-1 text-sm sm:text-xs min-w-[110px]">
-          <option>Labor</option>
-          <option>Parts/Materials</option>
-        </select>
-      </td>
-      <td className="px-3 py-2 w-20">
-        <input type="number" min="1" className="input py-1 text-sm sm:text-xs text-right" value={row.qty} onChange={(e) => onChange({ qty: Number(e.target.value) })} />
-      </td>
-      <td className="px-3 py-2 relative">
-        <input
-          className="input py-1 text-sm sm:text-xs"
-          value={row.description}
-          onChange={(e) => { onChange({ description: e.target.value }); setShowAuto(true) }}
-          onFocus={() => setShowAuto(true)}
-          placeholder="Search parts / service..."
-        />
-        {showAuto && filtered.length > 0 && (
-          <div className="absolute top-full left-0 z-20 mt-1 w-[90vw] max-w-sm sm:w-80 bg-white border rounded-md shadow-xl text-xs">
-            {filtered.map((p) => (
-              <button type="button" key={p.code} onClick={() => pick(p)} className="block w-full text-left px-3 py-2 hover:bg-sky-50 border-b last:border-b-0">
-                <div className="font-semibold text-gray-800">{p.name} ({p.code})</div>
-                {p.compat && <div className="text-[11px] text-gray-500">Compatible to: {p.compat}</div>}
-                {p.supplier && (
-                  <div className="text-[11px] text-gray-500">
-                    Supplier: {p.supplier} | Stock: {p.stock} | Reserved: {p.reserved} | SRP: {formatMoney(p.srp)}
-                  </div>
-                )}
-              </button>
-            ))}
-          </div>
-        )}
-      </td>
-      <td className="px-3 py-2 w-32">
-        <input type="number" className="input py-1 text-sm sm:text-xs text-right" value={row.unitCost} onChange={(e) => onChange({ unitCost: Number(e.target.value) })} />
-      </td>
-      <td className="px-3 py-2 w-28 text-right font-semibold">{formatMoney(subTotal)}</td>
-      <td className="px-3 py-2 w-20 text-center">
-        {isLast ? (
-          <button type="button" onClick={onAdd} className="bg-green-600 hover:bg-green-700 text-white rounded w-7 h-7 inline-flex items-center justify-center"><Icon name="plus" className="w-4 h-4" /></button>
-        ) : (
-          <button type="button" onClick={onRemove} className="bg-red-500 hover:bg-red-600 text-white rounded w-7 h-7 inline-flex items-center justify-center">−</button>
-        )}
-      </td>
-    </tr>
-  )
-}
