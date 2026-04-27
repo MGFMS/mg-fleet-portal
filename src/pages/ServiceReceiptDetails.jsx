@@ -24,6 +24,7 @@ import { getMostRecentAppointmentByPlate } from '../lib/appointments'
 import Icon from '../components/ui/Icon'
 import PageHero from '../components/ui/PageHero'
 import StatusPill from '../components/ui/StatusPill'
+import LineItemCard from '../components/LineItemCard'
 
 export default function ServiceReceiptDetails() {
   const { code } = useParams()
@@ -642,7 +643,10 @@ function RevisionEditor({ quot, profile, onCancel, onSaved }) {
 
       <div className="p-3 space-y-3">
         {items.map((row, i) => (
-          <EditRow key={i} row={row} index={i}
+          <LineItemCard
+            key={i}
+            index={i}
+            row={row}
             onChange={(patch) => update(i, patch)}
             onRemove={() => remove(i)}
             canRemove={items.length > 1}
@@ -711,6 +715,10 @@ function EditableItems({ quot, profile, onCancel, onSaved }) {
       qty: Number(i.qty) || 1,
       description: i.description || '',
       unitCost: Number(i.unitCost) || 0,
+      // Preserve revisionRound so the LineItemCard's Rev badge tracks
+      // which round each line came from. New rows added during edit
+      // default to round 1 (the current draft).
+      revisionRound: i.revisionRound || 1,
     })),
   )
   const [notes, setNotes] = useState(quot.notes || '')
@@ -747,10 +755,14 @@ function EditableItems({ quot, profile, onCancel, onSaved }) {
 
       <div className="p-3 space-y-3">
         {items.map((row, i) => (
-          <EditRow key={i} row={row} index={i}
+          <LineItemCard
+            key={i}
+            index={i}
+            row={row}
             onChange={(patch) => updateRow(i, patch)}
             onRemove={() => removeRow(i)}
             canRemove={items.length > 1}
+            showRevisionTag
           />
         ))}
         <button
@@ -803,160 +815,6 @@ function EditableItems({ quot, profile, onCancel, onSaved }) {
   )
 }
 
-function EditRow({ row, index, onChange, onRemove, canRemove }) {
-  const isLabor = row.type === 'Labor'
-  const subTotal = row.qty * row.unitCost
-  return (
-    <div className={`bg-white rounded-2xl border overflow-hidden ${isLabor ? 'border-sky-200' : 'border-gray-200'}`}>
-      <div className={`px-3 py-2 border-b flex items-center justify-between ${isLabor ? 'bg-sky-50' : 'bg-gray-50'}`}>
-        <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${isLabor ? 'bg-sky-600 text-white' : 'bg-gray-700 text-white'}`}>
-          #{index + 1} · {isLabor ? 'Labor' : 'Parts'}
-        </span>
-        {canRemove && (
-          <button
-            type="button"
-            onClick={onRemove}
-            className="text-xs text-red-600 hover:text-red-700 font-bold"
-          >
-            Remove
-          </button>
-        )}
-      </div>
-      <div className="p-3 space-y-3">
-        <div className="grid grid-cols-2 gap-2">
-          {['Labor', 'Parts/Materials'].map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => onChange({ type: t })}
-              className={`text-xs font-bold py-2 rounded-lg border-2 transition-colors ${
-                row.type === t
-                  ? (t === 'Labor' ? 'bg-sky-600 border-sky-600 text-white' : 'bg-gray-800 border-gray-800 text-white')
-                  : 'bg-white border-gray-200 text-gray-600'
-              }`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-        <input
-          className="input text-sm"
-          value={row.description}
-          onChange={(e) => onChange({ description: e.target.value })}
-          placeholder="Description (e.g. REPLACE BRAKE PADS FRONT)"
-        />
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <div className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Qty</div>
-            <div className="flex items-center bg-gray-50 border rounded-xl overflow-hidden">
-              <button
-                type="button"
-                onClick={() => onChange({ qty: Math.max(1, (row.qty || 1) - 1) })}
-                className="w-9 h-10 text-lg font-black text-gray-600 hover:bg-gray-100"
-              >−</button>
-              <input
-                type="number"
-                min="1"
-                value={row.qty}
-                onChange={(e) => onChange({ qty: Math.max(1, Number(e.target.value) || 1) })}
-                className="flex-1 bg-transparent text-center font-bold text-sm focus:outline-none min-w-0"
-              />
-              <button
-                type="button"
-                onClick={() => onChange({ qty: (row.qty || 1) + 1 })}
-                className="w-9 h-10 text-lg font-black text-gray-600 hover:bg-gray-100"
-              >+</button>
-            </div>
-          </div>
-          <div>
-            <div className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">Unit Cost</div>
-            <input
-              type="number"
-              min="0"
-              value={row.unitCost}
-              onChange={(e) => onChange({ unitCost: Number(e.target.value) || 0 })}
-              className="input text-right font-mono text-sm"
-            />
-          </div>
-        </div>
-        <div className="bg-gray-50 rounded-lg px-3 py-2 flex items-center justify-between">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Sub Total</span>
-          <span className="text-sm font-black text-gray-900">{formatMoney(subTotal)}</span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── Chain stepper ────────────────────────────────────────────────────────
-
-const STEPS = [
-  { code: QUOT_STATUS.DRAFT,                label: 'Draft',        icon: '📝' },
-  { code: QUOT_STATUS.FOR_MG_FLEET_REVIEW,  label: 'MG Fleet',     icon: '🏢' },
-  { code: QUOT_STATUS.FOR_CLIENT_REVIEW,    label: 'Client',       icon: '👤' },
-  { code: QUOT_STATUS.APPROVED_FINAL,       label: 'Approved',     icon: '✓'  },
-]
-
-function ChainStepper({ status }) {
-  // Where are we on the happy path?
-  const idx = (() => {
-    if (status === QUOT_STATUS.DRAFT) return 0
-    if (status === QUOT_STATUS.FOR_MG_FLEET_REVIEW) return 1
-    if (status === QUOT_STATUS.FOR_CLIENT_REVIEW) return 2
-    if (status === QUOT_STATUS.CLIENT_CLARIFICATION) return 2
-    if (status === QUOT_STATUS.APPROVED_FINAL) return 3
-    if (status === QUOT_STATUS.CLIENT_REJECTED) return 2
-    return 0
-  })()
-
-  const rejected = status === QUOT_STATUS.CLIENT_REJECTED
-  const clarify  = status === QUOT_STATUS.CLIENT_CLARIFICATION
-
-  return (
-    <div className="bg-white rounded-2xl border p-4">
-      <div className="text-[10px] font-bold tracking-widest text-gray-500 mb-3">APPROVAL CHAIN</div>
-      <div className="flex items-center">
-        {STEPS.map((step, i) => {
-          const done = i < idx || (i === idx && status === QUOT_STATUS.APPROVED_FINAL)
-          const here = i === idx && !done
-          return (
-            <div key={step.code} className="flex-1 flex items-center">
-              <div className="flex flex-col items-center flex-1 min-w-0">
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-black shrink-0 ${
-                  done   ? 'bg-green-600 text-white'
-                  : here  ? (rejected ? 'bg-red-600 text-white' : clarify ? 'bg-amber-500 text-white' : 'bg-brand text-white ring-4 ring-brand/20')
-                  :         'bg-gray-100 text-gray-400'
-                }`}>
-                  {done ? '✓' : step.icon}
-                </div>
-                <div className={`text-[10px] font-bold uppercase tracking-wider mt-1.5 text-center truncate max-w-full ${
-                  done ? 'text-green-700' : here ? (rejected ? 'text-red-700' : clarify ? 'text-amber-700' : 'text-brand') : 'text-gray-400'
-                }`}>
-                  {step.label}
-                </div>
-              </div>
-              {i < STEPS.length - 1 && (
-                <div className={`h-0.5 flex-shrink-0 w-4 sm:w-6 -mt-6 ${done ? 'bg-green-600' : 'bg-gray-200'}`} />
-              )}
-            </div>
-          )
-        })}
-      </div>
-      {(clarify || rejected) && (
-        <div className={`mt-3 text-[11px] rounded px-3 py-2 ${
-          rejected ? 'bg-red-50 border border-red-200 text-red-800'
-                   : 'bg-amber-50 border border-amber-200 text-amber-800'
-        }`}>
-          {rejected
-            ? 'Client rejected this quotation. Supervisor can re-open as draft to revise and resubmit.'
-            : 'Client is asking for clarification. See the comment thread, then supervisor re-opens as draft to address.'}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Comment thread + audit ───────────────────────────────────────────────
 
 function CommentThread({ quot, profile }) {
   const [text, setText] = useState('')
