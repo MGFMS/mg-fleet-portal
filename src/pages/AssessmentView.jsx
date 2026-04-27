@@ -159,11 +159,14 @@ export default function AssessmentView() {
                   Assessment is in. Build the quotation from these findings to start the approval chain.
                 </div>
                 <Link
-                  to={`/quotations/create?plate=${encodeURIComponent(a.header?.plate || '')}`}
+                  to={`/quotations/create?plate=${encodeURIComponent(a.header?.plate || '')}&fromAssessment=${encodeURIComponent(a.rwaNumber || '')}`}
                   className="inline-block mt-3 bg-brand hover:bg-brand-dark text-white text-xs font-bold px-4 py-2 rounded-full shadow"
                 >
                   Create Quotation →
                 </Link>
+                <div className="mt-2 text-[11px] text-gray-500">
+                  Lines will be prefilled from this assessment's critical findings — review and set unit costs.
+                </div>
               </div>
             </div>
           </div>

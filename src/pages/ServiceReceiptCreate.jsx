@@ -6,10 +6,15 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { collection, getDocs, limit, query, where } from 'firebase/firestore'
+import { db } from '../lib/firebase'
 import { useAuth } from '../context/AuthContext'
 import { MECHANICS, formatMoney } from '../lib/dummyData'
 import { watchVehicles } from '../lib/vehicles'
 import { createReceipt } from '../lib/serviceReceipts'
+import {
+  suggestQuoteItemsFromAssessment, summarizeAssessmentForQuote,
+} from '../lib/assessmentToQuote'
 import Icon from '../components/ui/Icon'
 import PageHero from '../components/ui/PageHero'
 
@@ -32,7 +37,14 @@ export default function ServiceReceiptCreate({ kind = 'receipt' }) {
   const navigate = useNavigate()
   const { profile } = useAuth()
   const initialPlate = (search.get('plate') || '').toUpperCase()
+  const fromAssessment = search.get('fromAssessment') || ''
   const isQuotation = kind === 'quotation'
+
+  // Smart prefill from a completed assessment (Round 17). Loaded once on
+  // mount when the URL carries ?fromAssessment=RWA-####. We replace the
+  // default seed items with the suggestions; the user can still edit any
+  // line and add/remove rows.
+  const [prefillBanner, setPrefillBanner] = useState(null)
 
   const [vehicles, setVehicles] = useState([])
   useEffect(() => {
@@ -65,6 +77,49 @@ export default function ServiceReceiptCreate({ kind = 'receipt' }) {
     setCustomerName(vehicle.assignedTo || customerName)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vehicle.plateNo])
+
+  // Load the source assessment (if any) and seed line items from it. Runs
+  // exactly once per fromAssessment param value. If the assessment is
+  // missing or has no failed items, leave the default seed alone and
+  // surface a soft warning instead of a success banner.
+  useEffect(() => {
+    if (!fromAssessment || !db) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const snap = await getDocs(query(
+          collection(db, 'assessments'),
+          where('rwaNumber', '==', fromAssessment),
+          limit(1),
+        ))
+        if (cancelled) return
+        if (snap.empty) {
+          setPrefillBanner({ tone: 'warn', text: `Assessment ${fromAssessment} not found — starting with a blank quote.` })
+          return
+        }
+        const a = { _docId: snap.docs[0].id, ...snap.docs[0].data() }
+        const suggestions = suggestQuoteItemsFromAssessment(a)
+        const summary = summarizeAssessmentForQuote(a)
+        if (suggestions.length === 0) {
+          setPrefillBanner({ tone: 'info', text: `Assessment ${summary.rwa || fromAssessment} had no critical findings — nothing to prefill. Add lines manually if needed.` })
+          return
+        }
+        setItems(suggestions)
+        const parts = [
+          `${summary.criticalCount} critical finding${summary.criticalCount === 1 ? '' : 's'}`,
+        ]
+        if (summary.holdCount > 0) parts.push(`${summary.holdCount} hold-unit`)
+        setPrefillBanner({
+          tone: 'success',
+          text: `Prefilled ${suggestions.length} line${suggestions.length === 1 ? '' : 's'} from ${summary.rwa || fromAssessment} (${parts.join(', ')}). Review and set unit costs before submitting.`,
+        })
+      } catch (err) {
+        console.error('[quote prefill] failed:', err)
+        if (!cancelled) setPrefillBanner({ tone: 'warn', text: 'Could not load assessment for prefill — starting with a blank quote.' })
+      }
+    })()
+    return () => { cancelled = true }
+  }, [fromAssessment])
 
   const laborTotal = items.filter((i) => i.type === 'Labor').reduce((s, i) => s + i.qty * i.unitCost, 0)
   const matTotal   = items.filter((i) => i.type !== 'Labor').reduce((s, i) => s + i.qty * i.unitCost, 0)
@@ -113,6 +168,21 @@ export default function ServiceReceiptCreate({ kind = 'receipt' }) {
 
       <div className="px-3 sm:px-6 pt-4 space-y-4">
         {error && <div className="bg-red-50 border border-red-200 text-red-800 rounded-xl px-3 py-2 text-sm">Save failed: {error}</div>}
+
+        {prefillBanner && (
+          <div className={`rounded-xl px-3 py-2.5 text-sm border ${
+            prefillBanner.tone === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+            : prefillBanner.tone === 'warn' ? 'bg-amber-50 border-amber-200 text-amber-900'
+            : 'bg-sky-50 border-sky-200 text-sky-900'
+          }`}>
+            <div className="flex items-start gap-2">
+              <span className="text-lg leading-none">
+                {prefillBanner.tone === 'success' ? '✓' : prefillBanner.tone === 'warn' ? '⚠️' : 'ℹ️'}
+              </span>
+              <div className="flex-1 text-xs sm:text-sm">{prefillBanner.text}</div>
+            </div>
+          </div>
+        )}
 
         <Section title="Customer & Vehicle">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
