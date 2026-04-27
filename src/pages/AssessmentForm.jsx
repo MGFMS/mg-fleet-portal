@@ -10,7 +10,7 @@
 //   - Supervisor override
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { fetchContextDoc } from '../lib/notifications'
 import { watchVehicles } from '../lib/vehicles'
@@ -418,6 +418,29 @@ export default function AssessmentForm() {
       {/* ── Vehicle & header ─────────────────────────────────────── */}
       <div className="m-3 sm:m-4 bg-white border rounded-xl p-3 sm:p-4">
         <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-3">Vehicle & Header</div>
+
+        {/* Assigned mechanic — moved into the assessment flow per Round 16.
+            The card on My Garage no longer has its own assign action; this
+            is the only entry to AssignMechanic now. */}
+        {appointmentId && (
+          <div className="mb-3 bg-gray-50 border rounded-lg px-3 py-2.5 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Assigned Mechanic</div>
+              <div className={`text-sm font-bold truncate ${appointment?.mechanic && appointment.mechanic !== 'Not yet assigned' ? 'text-gray-900' : 'italic text-gray-400 font-normal'}`}>
+                {appointment?.mechanic && appointment.mechanic !== 'Not yet assigned'
+                  ? appointment.mechanic
+                  : 'Not yet assigned'}
+              </div>
+            </div>
+            <Link
+              to={`/appointments/${appointmentId}/assign?then=assess`}
+              className="shrink-0 text-[11px] font-bold text-brand hover:text-brand-dark bg-white border border-brand rounded-lg px-3 py-1.5"
+            >
+              {appointment?.mechanic && appointment.mechanic !== 'Not yet assigned' ? 'Change' : 'Assign'}
+            </Link>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
           <Field label="Plate">
             <input value={header.plate} onChange={(e) => setHeader((h) => ({ ...h, plate: e.target.value.toUpperCase() }))} className="input w-full uppercase" />

@@ -6,7 +6,7 @@
 // supervisor override card (if any). Read-only — no re-assess action.
 
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { collection, getDocs, limit, query, where } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { useAuth } from '../context/AuthContext'
@@ -146,6 +146,29 @@ export default function AssessmentView() {
       </div>
 
       <div className="px-3 sm:px-4 pt-4 space-y-4">
+        {/* ── Create Quotation CTA — internal only, the canonical entry to
+            quote creation post-Round-16. Walk-in vs fleet doesn't matter
+            here; the quote flow handles both. */}
+        {!clientView && (
+          <div className="bg-white border-2 border-brand/30 rounded-2xl p-4">
+            <div className="flex items-start gap-3">
+              <div className="text-2xl leading-none">📝</div>
+              <div className="flex-1 min-w-0">
+                <div className="font-black text-gray-900 text-sm">Ready to quote</div>
+                <div className="text-xs text-gray-600 mt-1">
+                  Assessment is in. Build the quotation from these findings to start the approval chain.
+                </div>
+                <Link
+                  to={`/quotations/create?plate=${encodeURIComponent(a.header?.plate || '')}`}
+                  className="inline-block mt-3 bg-brand hover:bg-brand-dark text-white text-xs font-bold px-4 py-2 rounded-full shadow"
+                >
+                  Create Quotation →
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── Supervisor override CTA (admins, still-blocked units only) ─ */}
         {canOverride && (
           <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-4">
