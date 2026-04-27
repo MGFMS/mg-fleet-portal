@@ -101,7 +101,7 @@ export default function ServiceReceiptCreate({ kind = 'receipt' }) {
         const suggestions = suggestQuoteItemsFromAssessment(a)
         const summary = summarizeAssessmentForQuote(a)
         if (suggestions.length === 0) {
-          setPrefillBanner({ tone: 'info', text: `Assessment ${summary.rwa || fromAssessment} had no critical findings — nothing to prefill. Add lines manually if needed.` })
+          setPrefillBanner({ tone: 'info', text: `Assessment ${summary.rwa || fromAssessment} had no critical or monitor findings — nothing to prefill. Add lines manually if needed.` })
           return
         }
         setItems(suggestions)
@@ -110,6 +110,7 @@ export default function ServiceReceiptCreate({ kind = 'receipt' }) {
           parts.push(`${summary.laborCount} labor type${summary.laborCount === 1 ? '' : 's'} declared`)
         }
         parts.push(`${summary.criticalCount} critical finding${summary.criticalCount === 1 ? '' : 's'}`)
+        if (summary.monitorCount > 0) parts.push(`${summary.monitorCount} monitor item${summary.monitorCount === 1 ? '' : 's'}`)
         if (summary.holdCount > 0) parts.push(`${summary.holdCount} hold-unit`)
         const sourceNote = summary.laborSource === 'derived'
           ? ' Labor lines were derived per item (no labors declared on this assessment).'

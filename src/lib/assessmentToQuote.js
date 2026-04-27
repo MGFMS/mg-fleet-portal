@@ -15,10 +15,12 @@
 // Out of scope:
 //   - Pricing. Until the Cavite catalog ingestion ships, unitCost is left
 //     at 0 and the user fills it in. Round 13 deferred this.
-//   - 'monitor' items. They're tracked, not repaired — the quote shouldn't
-//     proactively bill for them.
 //   - 'replaced' items. The replacement happened in the field; nothing to
 //     bill on top.
+//
+// Round 19 — monitor items now appear too, but tagged "(Monitor)" so the
+// quote reader can tell them apart from urgent failures and choose to
+// defer or roll them in.
 
 import {
   ALL_ITEMS, CATEGORIES, ITEM_MAP, INSP_TO_PMS, LABOR_TYPE_MAP, PMS_MAP,
@@ -56,34 +58,37 @@ function normalizedLabors(assessment) {
   return []
 }
 
-// Build the Parts lines from failed inspection items. Same logic both
-// paths share — labor strategy diverges, parts don't.
+// Build the Parts lines from inspection items. Includes both
+// `fail_critical` (urgent — replace now) and `monitor` (watch list, but
+// the customer often opts to bundle them into the same job). Monitor
+// items are prefixed "(Monitor)" so the quote distinguishes them.
 function partsLinesFromItemResults(itemResults) {
   const findings = []
   for (const code of Object.keys(itemResults)) {
     const r = itemResults[code]
     const item = ITEM_MAP[code]
     if (!item || !r?.resultCode) continue
-    if (r.resultCode !== 'fail_critical') continue
-    const action = getAction(item, r.resultCode)
-    if (action === 'NONE' || action === 'MONITOR_ONLY') continue
-    findings.push({ item, result: r, action })
+    if (r.resultCode !== 'fail_critical' && r.resultCode !== 'monitor') continue
+    findings.push({ item, result: r, severity: r.resultCode })
   }
+  // Sort: critical first, then monitor; within each, by category, then label.
   findings.sort((a, b) => {
+    if (a.severity !== b.severity) return a.severity === 'fail_critical' ? -1 : 1
     const ca = CATEGORY_INDEX[categoryOf(a.item.code)] ?? 999
     const cb = CATEGORY_INDEX[categoryOf(b.item.code)] ?? 999
     if (ca !== cb) return ca - cb
     return (a.item.label || '').localeCompare(b.item.label || '')
   })
-  return findings.map(({ item }) => {
+  return findings.map(({ item, severity }) => {
     const pmsCode = INSP_TO_PMS[item.code]
     const partsLabel = pmsCode && PMS_MAP[pmsCode]?.label
       ? PMS_MAP[pmsCode].label
       : item.label
+    const monitorTag = severity === 'monitor' ? '(Monitor) ' : ''
     return {
       type: 'Parts/Materials',
       qty: 1,
-      description: `Replace ${partsLabel}`,
+      description: `${monitorTag}Replace ${partsLabel}`,
       unitCost: 0,
     }
   })
@@ -130,19 +135,22 @@ export function suggestQuoteItemsFromAssessment(assessment) {
   }
 
   // STRATEGY B — legacy fallback (Round 17 behavior): one Labor + one
-  // Parts line per failed inspection item.
+  // Parts line per inspection finding. Now also includes monitor items
+  // (Round 19), tagged "(Monitor)" on both Labor and Parts so the quote
+  // surfaces watch-list items without confusing them with urgencies.
   const findings = []
   for (const code of Object.keys(itemResults)) {
     const r = itemResults[code]
     const item = ITEM_MAP[code]
     if (!item || !r?.resultCode) continue
-    if (r.resultCode !== 'fail_critical') continue
+    if (r.resultCode !== 'fail_critical' && r.resultCode !== 'monitor') continue
     const action = getAction(item, r.resultCode)
-    if (action === 'NONE' || action === 'MONITOR_ONLY') continue
-    findings.push({ item, result: r, action })
+    findings.push({ item, result: r, action, severity: r.resultCode })
   }
 
+  // Critical first, then monitor; within each, category order then label.
   findings.sort((a, b) => {
+    if (a.severity !== b.severity) return a.severity === 'fail_critical' ? -1 : 1
     const ca = CATEGORY_INDEX[categoryOf(a.item.code)] ?? 999
     const cb = CATEGORY_INDEX[categoryOf(b.item.code)] ?? 999
     if (ca !== cb) return ca - cb
@@ -150,12 +158,13 @@ export function suggestQuoteItemsFromAssessment(assessment) {
   })
 
   const rows = []
-  for (const { item, action } of findings) {
-    const prefix = laborPrefix(action)
+  for (const { item, action, severity } of findings) {
+    const monitorTag = severity === 'monitor' ? '(Monitor) ' : ''
+    const prefix = severity === 'monitor' ? 'Watch:' : laborPrefix(action)
     rows.push({
       type: 'Labor',
       qty: 1,
-      description: `${prefix} ${item.label}`.trim(),
+      description: `${monitorTag}${prefix} ${item.label}`.trim(),
       unitCost: 0,
     })
 
@@ -166,7 +175,7 @@ export function suggestQuoteItemsFromAssessment(assessment) {
     rows.push({
       type: 'Parts/Materials',
       qty: 1,
-      description: `Replace ${partsLabel}`,
+      description: `${monitorTag}Replace ${partsLabel}`,
       unitCost: 0,
     })
   }
@@ -182,11 +191,14 @@ export function summarizeAssessmentForQuote(assessment) {
   const itemResults = assessment?.itemResults || {}
   let criticalCount = 0
   let holdCount = 0
+  let monitorCount = 0
   for (const item of items) {
     const r = itemResults[item.code]
     if (r?.resultCode === 'fail_critical') {
       criticalCount++
       if (item.holdUnit) holdCount++
+    } else if (r?.resultCode === 'monitor') {
+      monitorCount++
     }
   }
   const declaredLabors = normalizedLabors(assessment)
@@ -196,6 +208,7 @@ export function summarizeAssessmentForQuote(assessment) {
   return {
     criticalCount,
     holdCount,
+    monitorCount,
     laborCount,
     laborSource,
     rwa: assessment?.rwaNumber || null,
