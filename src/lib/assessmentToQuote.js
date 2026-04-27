@@ -23,8 +23,8 @@
 // defer or roll them in.
 
 import {
-  ALL_ITEMS, CATEGORIES, ITEM_MAP, INSP_TO_PMS, LABOR_TYPE_MAP, PMS_MAP,
-  getAction,
+  ALL_ITEMS, CATEGORIES, DEFECT_CODES, ITEM_MAP, INSP_TO_PMS,
+  LABOR_TYPE_MAP, PMS_MAP, getAction,
 } from './mgfms-catalog'
 
 // Stable category order so the generated quote reads like a service order
@@ -62,6 +62,10 @@ function normalizedLabors(assessment) {
 // `fail_critical` (urgent — replace now) and `monitor` (watch list, but
 // the customer often opts to bundle them into the same job). Monitor
 // items are prefixed "(Monitor)" so the quote distinguishes them.
+//
+// Round 21: when the assessor recorded a defect code (LOW_THICKNESS,
+// LEAKING, etc.), it gets appended to the description so the quote
+// tells the customer *why* — better-justified line item.
 function partsLinesFromItemResults(itemResults) {
   const findings = []
   for (const code of Object.keys(itemResults)) {
@@ -79,16 +83,20 @@ function partsLinesFromItemResults(itemResults) {
     if (ca !== cb) return ca - cb
     return (a.item.label || '').localeCompare(b.item.label || '')
   })
-  return findings.map(({ item, severity }) => {
+  return findings.map(({ item, result, severity }) => {
     const pmsCode = INSP_TO_PMS[item.code]
     const partsLabel = pmsCode && PMS_MAP[pmsCode]?.label
       ? PMS_MAP[pmsCode].label
       : item.label
     const monitorTag = severity === 'monitor' ? '(Monitor) ' : ''
+    const defectLabel = result?.defectCode && DEFECT_CODES[result.defectCode]
+      ? DEFECT_CODES[result.defectCode]
+      : (result?.defectCode || null)
+    const defectSuffix = defectLabel ? ` — ${defectLabel}` : ''
     return {
       type: 'Parts/Materials',
       qty: 1,
-      description: `${monitorTag}Replace ${partsLabel}`,
+      description: `${monitorTag}Replace ${partsLabel}${defectSuffix}`,
       unitCost: 0,
     }
   })
@@ -158,7 +166,7 @@ export function suggestQuoteItemsFromAssessment(assessment) {
   })
 
   const rows = []
-  for (const { item, action, severity } of findings) {
+  for (const { item, result, action, severity } of findings) {
     const monitorTag = severity === 'monitor' ? '(Monitor) ' : ''
     const prefix = severity === 'monitor' ? 'Watch:' : laborPrefix(action)
     rows.push({
@@ -172,15 +180,62 @@ export function suggestQuoteItemsFromAssessment(assessment) {
     const partsLabel = pmsCode && PMS_MAP[pmsCode]?.label
       ? PMS_MAP[pmsCode].label
       : item.label
+    const defectLabel = result?.defectCode && DEFECT_CODES[result.defectCode]
+      ? DEFECT_CODES[result.defectCode]
+      : (result?.defectCode || null)
+    const defectSuffix = defectLabel ? ` — ${defectLabel}` : ''
     rows.push({
       type: 'Parts/Materials',
       qty: 1,
-      description: `${monitorTag}Replace ${partsLabel}`,
+      description: `${monitorTag}Replace ${partsLabel}${defectSuffix}`,
       unitCost: 0,
     })
   }
 
   return rows
+}
+
+// Round 21 — pull the form-header fields the quote create page already
+// asks for (odometer, customer, branch, company) directly from the
+// assessment header, so the user doesn't re-type data we already have.
+// Returns only the fields with a non-empty value, so existing prefill
+// (from the vehicles registry) is preserved when the assessment didn't
+// record a particular field.
+export function extractHeaderPrefill(assessment) {
+  const h = assessment?.header || {}
+  const out = {}
+  if (h.odometer != null && Number.isFinite(Number(h.odometer))) {
+    out.odometer = Number(h.odometer)
+  }
+  // Driver / custodian — the assessment names the field "client" but in
+  // mg-fms parlance that's the fleet company, not the driver. The
+  // assessment header doesn't carry the driver's name. Skip.
+  if (h.client && h.client.trim()) out.company = h.client.trim()
+  if (h.branch && h.branch.trim()) out.branch = h.branch.trim().toUpperCase()
+  // Mechanic-of-record on the appointment is the "technician" on the
+  // assessment header. Useful as the quote's mechanic field default.
+  if (h.technician && h.technician.trim()) out.mechanic = h.technician.trim()
+  return out
+}
+
+// Round 21 — roll up any non-empty per-item notes the assessor wrote
+// into a single block of bullet points, suitable for the quote's notes
+// textarea. Each line is "<item label>: <note>". Returns empty string
+// if there are no notes worth carrying over.
+export function extractAssessmentNotes(assessment) {
+  const itemResults = assessment?.itemResults || {}
+  const lines = []
+  for (const code of Object.keys(itemResults)) {
+    const r = itemResults[code]
+    const note = (r?.note || '').trim()
+    if (!note) continue
+    const item = ITEM_MAP[code]
+    if (!item) continue
+    lines.push(`• ${item.label}: ${note}`)
+  }
+  if (lines.length === 0) return ''
+  const rwa = assessment?.rwaNumber || '—'
+  return `From assessment ${rwa}:\n${lines.join('\n')}`
 }
 
 // Convenience wrapper: returns the counts the prefill banner shows, plus

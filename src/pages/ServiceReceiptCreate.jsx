@@ -13,6 +13,7 @@ import { MECHANICS, formatMoney } from '../lib/dummyData'
 import { watchVehicles } from '../lib/vehicles'
 import { createReceipt } from '../lib/serviceReceipts'
 import {
+  extractAssessmentNotes, extractHeaderPrefill,
   suggestQuoteItemsFromAssessment, summarizeAssessmentForQuote,
 } from '../lib/assessmentToQuote'
 import Icon from '../components/ui/Icon'
@@ -45,6 +46,9 @@ export default function ServiceReceiptCreate({ kind = 'receipt' }) {
   // default seed items with the suggestions; the user can still edit any
   // line and add/remove rows.
   const [prefillBanner, setPrefillBanner] = useState(null)
+  // Track whether the assessment prefill already ran so the vehicle-
+  // registry effect (below) doesn't clobber the assessor's odometer.
+  const [assessmentPrefilled, setAssessmentPrefilled] = useState(false)
 
   const [vehicles, setVehicles] = useState([])
   useEffect(() => {
@@ -70,13 +74,16 @@ export default function ServiceReceiptCreate({ kind = 'receipt' }) {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
 
-  // Sync to selected vehicle when list arrives / plate changes
+  // Sync to selected vehicle when list arrives / plate changes. Skipped
+  // when the assessment prefill already wrote the odometer/customer —
+  // that path has fresher data and we don't want to clobber it.
   useEffect(() => {
     if (!vehicle) return
+    if (assessmentPrefilled) return
     setOdo(vehicle.latestOdo || 0)
     setCustomerName(vehicle.assignedTo || customerName)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vehicle.plateNo])
+  }, [vehicle.plateNo, assessmentPrefilled])
 
   // Load the source assessment (if any) and seed line items from it. Runs
   // exactly once per fromAssessment param value. If the assessment is
@@ -100,8 +107,25 @@ export default function ServiceReceiptCreate({ kind = 'receipt' }) {
         const a = { _docId: snap.docs[0].id, ...snap.docs[0].data() }
         const suggestions = suggestQuoteItemsFromAssessment(a)
         const summary = summarizeAssessmentForQuote(a)
+
+        // Round 21 — header + notes prefill always run, even when there
+        // are zero suggested line items. The assessor's odometer reading
+        // and any per-item notes are still useful on a "blank" quote.
+        const headerPrefill = extractHeaderPrefill(a)
+        if (headerPrefill.odometer != null) setOdo(headerPrefill.odometer)
+        if (headerPrefill.mechanic) setMechanic(headerPrefill.mechanic)
+        // Notes: prepend the assessment notes; preserve any user input.
+        const assessmentNotes = extractAssessmentNotes(a)
+        if (assessmentNotes) {
+          setNotes((prev) => prev ? `${assessmentNotes}\n\n${prev}` : assessmentNotes)
+        }
+        // Lock out the vehicle-registry effect from overwriting the
+        // odometer/customer — the assessment is now the source of truth
+        // for this quote.
+        setAssessmentPrefilled(true)
+
         if (suggestions.length === 0) {
-          setPrefillBanner({ tone: 'info', text: `Assessment ${summary.rwa || fromAssessment} had no critical or monitor findings — nothing to prefill. Add lines manually if needed.` })
+          setPrefillBanner({ tone: 'info', text: `Assessment ${summary.rwa || fromAssessment} had no critical or monitor findings — nothing to prefill on line items. Header fields and notes were carried over.` })
           return
         }
         setItems(suggestions)
