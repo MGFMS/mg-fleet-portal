@@ -54,18 +54,23 @@ export default function ServiceReceiptCreate({ kind = 'receipt' }) {
     [plate, vehicles],
   )
 
-  // Round 35 — resolve the free-text make/model on this vehicle to
-  // caviteIds so the line-item autocomplete can filter by vehicle.
-  // Cached after first call; falls back to {null,null} on miss.
+  // Round 35/36 — vehicle catalog IDs for the autocomplete. Prefer
+  // the caviteIds the assessment captured via the dropdown picker
+  // (Round 36); only fall back to free-text name resolution for
+  // legacy assessments that don't carry IDs.
   const [vehicleIds, setVehicleIds] = useState({ makeId: null, modelId: null })
   useEffect(() => {
+    if (Number.isFinite(vehicle?.caviteMakeId) && Number.isFinite(vehicle?.caviteModelId)) {
+      setVehicleIds({ makeId: vehicle.caviteMakeId, modelId: vehicle.caviteModelId })
+      return
+    }
     if (!vehicle?.brand && !vehicle?.brandModel) return
     let cancelled = false
     resolveVehicleIds(vehicle.brand, vehicle.model).then((ids) => {
       if (!cancelled) setVehicleIds(ids)
     })
     return () => { cancelled = true }
-  }, [vehicle?.brand, vehicle?.model])
+  }, [vehicle?.caviteMakeId, vehicle?.caviteModelId, vehicle?.brand, vehicle?.model])
 
   const [odo, setOdo] = useState(vehicle.latestOdo || 0)
   // Round 25a — customer name is no longer auto-populated from the

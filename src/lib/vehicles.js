@@ -167,6 +167,11 @@ function toVehicle(assessment, pmsRecord) {
     plateNo: plate,
     brand: h.make || '',
     model: h.model || '',
+    // Round 36 — caviteIds when the assessment was created with the
+    // make/model dropdown picker. Used by the quote autocomplete to
+    // filter the catalog without a fuzzy name lookup.
+    caviteMakeId: Number.isFinite(Number(h.makeId)) ? Number(h.makeId) : null,
+    caviteModelId: Number.isFinite(Number(h.modelId)) ? Number(h.modelId) : null,
     brandModel: h.make && h.model ? `${h.make} - ${h.model}` : (h.make || h.model || ''),
     yearModel: h.yearModel || '',
     // Round 25a — was `h.technician`. The technician on an assessment is

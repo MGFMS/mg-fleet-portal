@@ -11,6 +11,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import VehicleMakeModelPicker from '../components/VehicleMakeModelPicker'
 import { useAuth } from '../context/AuthContext'
 import { fetchContextDoc } from '../lib/notifications'
 import { watchVehicles } from '../lib/vehicles'
@@ -516,8 +517,23 @@ export default function AssessmentForm() {
           <Field label="Date">
             <input type="date" value={header.date} onChange={(e) => setHeader((h) => ({ ...h, date: e.target.value }))} className="input w-full" />
           </Field>
-          <Field label="Make"><input value={header.make} onChange={(e) => setHeader((h) => ({ ...h, make: e.target.value }))} className="input w-full" /></Field>
-          <Field label="Model"><input value={header.model} onChange={(e) => setHeader((h) => ({ ...h, model: e.target.value }))} className="input w-full" /></Field>
+          <div className="sm:col-span-2">
+            <VehicleMakeModelPicker
+              value={{
+                makeName: header.make || '',
+                makeId:   header.makeId ?? null,
+                modelName: header.model || '',
+                modelId:   header.modelId ?? null,
+              }}
+              onChange={(v) => setHeader((h) => ({
+                ...h,
+                make: v.makeName,
+                makeId: v.makeId,
+                model: v.modelName,
+                modelId: v.modelId,
+              }))}
+            />
+          </div>
           <Field label="Year"><input value={header.yearModel} onChange={(e) => setHeader((h) => ({ ...h, yearModel: e.target.value }))} className="input w-full" /></Field>
           <Field label="Odometer (km)"><input type="number" value={header.odometer} onChange={(e) => setHeader((h) => ({ ...h, odometer: e.target.value }))} className="input w-full" /></Field>
           <Field label="Client / Fleet"><input value={header.client} onChange={(e) => setHeader((h) => ({ ...h, client: e.target.value }))} className="input w-full" /></Field>
