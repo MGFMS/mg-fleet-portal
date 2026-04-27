@@ -20,6 +20,7 @@ export default function VehicleCatalogIngest() {
   const [brandsFile, setBrandsFile] = useState(null)
   const [modelsFile, setModelsFile] = useState(null)
   const [parsing, setParsing] = useState(false)
+  const [parseStep, setParseStep] = useState('') // human-readable progress
   const [parseError, setParseError] = useState(null)
   const [ingesting, setIngesting] = useState(false)
   const [ingestResult, setIngestResult] = useState(null)
@@ -29,21 +30,51 @@ export default function VehicleCatalogIngest() {
   // delta before clicking Ingest.
   const [existingBrands, setExistingBrands] = useState([])
   const [existingModels, setExistingModels] = useState([])
+  const [readError, setReadError] = useState(null)
   useEffect(() => {
-    const u1 = watchBrands(({ rows }) => setExistingBrands(rows))
-    const u2 = watchModels({}, ({ rows }) => setExistingModels(rows))
+    const u1 = watchBrands((res) => {
+      if (res.source === 'error') setReadError(`refVehicleBrands read failed: ${res.error?.code || res.error?.message || 'unknown'}`)
+      else setExistingBrands(res.rows)
+    })
+    const u2 = watchModels({}, (res) => {
+      if (res.source === 'error') setReadError((prev) => prev || `refVehicleModels read failed: ${res.error?.code || res.error?.message || 'unknown'}`)
+      else setExistingModels(res.rows)
+    })
     return () => { u1?.(); u2?.() }
   }, [])
 
+  // Yield to the browser between steps so React paints the progress
+  // indicator instead of locking the screen during the synchronous parts
+  // of the parse.
+  const yieldToUI = () => new Promise((r) => setTimeout(r, 0))
+
   const parse = async (file, setter) => {
-    setParsing(true); setParseError(null)
+    const t0 = performance.now()
+    setParsing(true); setParseError(null); setParseStep('Loading xlsx parser…')
+    console.log('[ingest] parse started:', file.name, file.size, 'bytes')
     try {
+      await yieldToUI()
       const xlsx = await import('xlsx')
+      console.log('[ingest] xlsx module loaded in', (performance.now() - t0).toFixed(0), 'ms')
+
+      setParseStep('Reading file…')
+      await yieldToUI()
       const buf = await file.arrayBuffer()
+      console.log('[ingest] arrayBuffer obtained, byteLength =', buf.byteLength)
+
+      setParseStep('Decoding workbook…')
+      await yieldToUI()
       const wb = xlsx.read(buf, { type: 'array' })
       const sheetName = wb.SheetNames[0]
+      console.log('[ingest] sheets:', wb.SheetNames, '| using:', sheetName)
       const ws = wb.Sheets[sheetName]
+
+      setParseStep('Extracting rows…')
+      await yieldToUI()
       const rows = xlsx.utils.sheet_to_json(ws, { defval: null })
+      console.log('[ingest] parsed', rows.length, 'rows in', (performance.now() - t0).toFixed(0), 'ms total')
+
+      setParseStep('Done.')
       setter(rows)
     } catch (err) {
       console.error('[ingest] parse failed:', err)
@@ -125,6 +156,17 @@ export default function VehicleCatalogIngest() {
           </ol>
         </div>
 
+        {readError && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-3 py-2 text-sm">
+            <div className="font-bold">Firestore read blocked</div>
+            <div className="text-xs mt-0.5">{readError}</div>
+            <div className="text-xs mt-1 italic">
+              Likely the firestore.rules in mg-fms-app/firestore.rules haven't been deployed for the new collections.
+              The ingest will fail at the read step. Deploy rules before retrying.
+            </div>
+          </div>
+        )}
+
         {parseError && (
           <div className="bg-red-50 border border-red-200 text-red-800 rounded-xl px-3 py-2 text-sm">
             Parse failed: {parseError}
@@ -149,7 +191,10 @@ export default function VehicleCatalogIngest() {
         </div>
 
         {parsing && (
-          <div className="text-sm text-gray-500 italic">Parsing…</div>
+          <div className="bg-sky-50 border border-sky-200 rounded-xl px-3 py-2 text-sm text-sky-900 flex items-center gap-2">
+            <span className="inline-block w-3 h-3 border-2 border-sky-700 border-t-transparent rounded-full animate-spin" />
+            <span>{parseStep || 'Parsing…'}</span>
+          </div>
         )}
 
         {brandsRaw && (

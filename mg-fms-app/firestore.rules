@@ -60,6 +60,44 @@ service cloud.firestore {
       allow read, write: if request.auth != null;
     }
 
+    // ─── Round 12+ finance collections ───────────────────────────────────
+
+    // Branch invoices (branch → MG Fleet, Round 12). Internal only.
+    match /branchInvoices/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Client invoices (MG Fleet → fleet client, Round 13). Customers can
+    // read their own; UI enforces company-scope, server enforces auth.
+    match /clientInvoices/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Credit notes (Round 15) — applies to both branch and client invoices.
+    match /creditNotes/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Per-branch / per-issuer sequential counters used by the invoice +
+    // credit-note numbering. Read+write any authed user (no PII).
+    match /counters/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // ─── Round 20 reference catalogs ─────────────────────────────────────
+
+    // Vehicle make catalog (ingested from MG Cavite database). Anyone authed
+    // can read so the quote create flow can populate make/model dropdowns.
+    // Writes are gated client-side to is_admin via the ingest page.
+    match /refVehicleBrands/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Vehicle model catalog. Same shape as brands.
+    match /refVehicleModels/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
     // ─── Default deny ─────────────────────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;
