@@ -10,6 +10,7 @@ import VehicleImage from '../components/ui/VehicleImage'
 import OverdueChip from '../components/ui/OverdueChip'
 import Icon from '../components/ui/Icon'
 import PageHero, { HeroStat } from '../components/ui/PageHero'
+import ClientBillingSnapshot from '../components/ClientBillingSnapshot'
 
 export default function Portal() {
   const { profile } = useAuth()
@@ -73,6 +74,8 @@ export default function Portal() {
       </div>
 
       <div className="px-3 sm:px-6 pt-5 space-y-5">
+        <ClientBillingSnapshot company={company} />
+
         <Section
           title="Overdue Preventive Maintenance"
           icon="warn"

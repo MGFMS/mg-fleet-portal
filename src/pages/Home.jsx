@@ -9,6 +9,7 @@ import { formatDateTime } from '../lib/dummyData'
 import { watchAppointments } from '../lib/appointments'
 import { watchVehicles } from '../lib/vehicles'
 import StatusPill, { PipelineCard } from '../components/ui/StatusPill'
+import FinanceSnapshot from '../components/FinanceSnapshot'
 import VehicleImage from '../components/ui/VehicleImage'
 import Icon from '../components/ui/Icon'
 import PageHero, { HeroStat } from '../components/ui/PageHero'
@@ -127,6 +128,8 @@ export default function Home() {
       </div>
 
       <div className="px-3 sm:px-6 pt-5 space-y-4">
+        <FinanceSnapshot profile={profile} />
+
         {/* Pipeline row — color-coded counts */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2">
           {STATUS_ORDER.map((s) => (

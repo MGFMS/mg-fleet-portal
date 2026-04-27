@@ -105,7 +105,7 @@ export default function Sidebar() {
           <Item to="/portal/service-log" label="Service Log" />
           <Item to="/portal/notifications" label="Notifications" />
           <Item to="/portal/quotations" label="Service Quotations" />
-          <Item to="/portal/invoices" label="My Invoices" />
+          <Item to="/portal/invoices" label="Service Receipts" />
           <Item to="/portal/statement" label="Statement of Account" />
           {canBookServices(role) && (
             <Item to="/appointments" label="+ Book a Service" />
