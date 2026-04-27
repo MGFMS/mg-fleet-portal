@@ -256,18 +256,37 @@ function QuotationDetail({ quot, profile }) {
           className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-[0_-4px_12px_rgba(0,0,0,0.05)]"
           style={{ paddingBottom: 'env(safe-area-inset-bottom, 0)' }}
         >
+          {/* Round 39 — block forward transitions when any line is ₱0. */}
+          {(() => {
+            const unpriced = (quot.items || []).filter((i) => Number(i.unitCost) <= 0)
+            if (unpriced.length === 0) return null
+            return (
+              <div className="bg-amber-100 border-b border-amber-300 text-amber-900 text-xs sm:text-sm px-3 sm:px-6 py-2">
+                ⚠ <strong>{unpriced.length} line{unpriced.length === 1 ? '' : 's'}</strong> still at ₱0 —
+                set unit costs before forwarding. Edit items to enter prices, or use the catalog autocomplete to pick a priced item.
+              </div>
+            )
+          })()}
           <div className="px-3 sm:px-6 py-3 grid gap-2" style={{ gridTemplateColumns: `repeat(${actions.length}, 1fr)` }}>
-            {actions.map((action) => (
-              <button
-                key={action.key}
-                type="button"
-                disabled={busy}
-                onClick={() => onAction(action)}
-                className={`text-sm font-bold px-3 py-3 rounded-xl active:scale-95 transition-transform disabled:opacity-40 ${toneClasses(action.tone)}`}
-              >
-                {actionLabel(action)}
-              </button>
-            ))}
+            {actions.map((action) => {
+              const isForward = action.nextStatus === QUOT_STATUS.FOR_MG_FLEET_REVIEW
+                             || action.nextStatus === QUOT_STATUS.FOR_CLIENT_REVIEW
+                             || action.nextStatus === QUOT_STATUS.APPROVED_FINAL
+              const unpriced = (quot.items || []).filter((i) => Number(i.unitCost) <= 0).length
+              const blocked = isForward && unpriced > 0
+              return (
+                <button
+                  key={action.key}
+                  type="button"
+                  disabled={busy || blocked}
+                  onClick={() => onAction(action)}
+                  className={`text-sm font-bold px-3 py-3 rounded-xl active:scale-95 transition-transform disabled:opacity-40 disabled:cursor-not-allowed ${toneClasses(action.tone)}`}
+                  title={blocked ? `Set unit costs on ${unpriced} line${unpriced === 1 ? '' : 's'} first.` : undefined}
+                >
+                  {actionLabel(action)}
+                </button>
+              )
+            })}
           </div>
         </div>
       )}

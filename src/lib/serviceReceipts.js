@@ -191,6 +191,24 @@ export async function transitionQuotation(id, { action, nextStatus, text, byProf
     throw new Error(`Cannot go from ${currentStatus} to ${nextStatus}.`)
   }
 
+  // Round 39 — block forward transitions when any line is unpriced.
+  // Reverse / lateral moves (rejection, clarification request, reopen
+  // as draft) are still allowed; only the forward path needs every
+  // line priced so the client never sees a quote with ₱0 totals.
+  const FORWARD_STATUSES = new Set([
+    QUOT_STATUS.FOR_MG_FLEET_REVIEW,
+    QUOT_STATUS.FOR_CLIENT_REVIEW,
+    QUOT_STATUS.APPROVED_FINAL,
+  ])
+  if (FORWARD_STATUSES.has(nextStatus)) {
+    const unpriced = (quot.items || []).filter((i) => Number(i.unitCost) <= 0)
+    if (unpriced.length > 0) {
+      const codes = unpriced.map((i) => i.description || 'untitled item').slice(0, 3).join(', ')
+      const more = unpriced.length > 3 ? ` and ${unpriced.length - 3} more` : ''
+      throw new Error(`${unpriced.length} line item${unpriced.length === 1 ? '' : 's'} still at ₱0 (${codes}${more}). Set unit costs before forwarding.`)
+    }
+  }
+
   const uid = auth?.currentUser?.uid || null
   const byName = profileDisplayName(byProfile)
   const byRole = actorRoleFor(byProfile)
@@ -405,6 +423,13 @@ export async function addQuotationRevision(id, { newItems, notes, byProfile }) {
   if (!id) throw new Error('Missing quotation id.')
   const incoming = (newItems || []).filter((i) => i && String(i.description || '').trim())
   if (incoming.length === 0) throw new Error('Add at least one line item to revise.')
+  // Round 39 — revisions reset the chain to FOR_MG_FLEET_REVIEW, so
+  // they must come in already priced. Block submission of any
+  // unpriced revision items.
+  const unpriced = incoming.filter((i) => Number(i.unitCost) <= 0)
+  if (unpriced.length > 0) {
+    throw new Error(`${unpriced.length} new revision item${unpriced.length === 1 ? '' : 's'} still at ₱0. Set unit costs before adding the revision.`)
+  }
 
   const snap = await getDoc(doc(db, COLLECTION, id))
   if (!snap.exists()) throw new Error('Quotation not found.')
