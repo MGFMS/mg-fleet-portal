@@ -150,6 +150,10 @@ export default function ClientInvoiceDetails() {
 
         {!customerView && <LinkedDocsCard invoice={invoice} />}
 
+        {customerView && invoice.reassessmentRwa && (
+          <ReassessmentClearedCard invoice={invoice} />
+        )}
+
         {customerView && invoice.status === CLIENT_INVOICE_STATUS.OPEN && balance > 0 && (
           <HowToPayCard invoice={invoice} balance={balance} />
         )}
@@ -276,6 +280,41 @@ function LinkedDocsCard({ invoice }) {
               {invoice.reassessmentRwa}
             </Link>
           ) : <span className="text-gray-400">—</span>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Round 30 — client-facing card surfacing the post-repair reassessment
+// that gated this invoice. Tells the client "your unit was roadworthy-
+// checked before this bill was issued" with a link to the actual RWA
+// findings. Only renders for fleet customers; staff see the same data
+// in LinkedDocsCard.
+function ReassessmentClearedCard({ invoice }) {
+  const status = String(invoice.reassessmentStatus || '').toLowerCase()
+  const cleared = invoice.supervisorCleared
+  const ok = status === 'active' || status === 'conditional' || cleared
+  return (
+    <div className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-4">
+      <div className="flex items-start gap-3">
+        <div className="text-2xl leading-none">{ok ? '✅' : '🛠'}</div>
+        <div className="flex-1 min-w-0">
+          <div className="font-black text-emerald-900 text-sm">
+            {ok ? 'Roadworthy reassessment passed' : 'Reassessment recorded'}
+          </div>
+          <div className="text-xs text-emerald-800 mt-1">
+            Before this invoice was issued, your unit was re-inspected on{' '}
+            {invoice.reassessmentAt ? formatDate(invoice.reassessmentAt) : 'the recorded date'}.
+            {' '}Open <span className="font-mono font-bold">{invoice.reassessmentRwa}</span> to see what was checked.
+            {cleared && ' Supervisor override on file.'}
+          </div>
+          <Link
+            to={`/assessments/${invoice.reassessmentRwa}`}
+            className="inline-block mt-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-full shadow"
+          >
+            View reassessment →
+          </Link>
         </div>
       </div>
     </div>

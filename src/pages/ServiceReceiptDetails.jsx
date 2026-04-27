@@ -173,6 +173,10 @@ function QuotationDetail({ quot, profile }) {
           </div>
         )}
 
+        {quot.sourceAssessmentRwa && (
+          <SourceAssessmentCard rwa={quot.sourceAssessmentRwa} plate={quot.plateNo} />
+        )}
+
         <CustomerCard receipt={quot} />
 
         {editable && !editMode && (
@@ -383,6 +387,35 @@ function InvoiceGateCard({ gateState, canIssueInvoice, busy, onIssue, plateNo })
               View reassessment {gate.reassessment.rwaNumber} →
             </Link>
           )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Round 30 — surfaces the assessment that drove this quote so the client
+// can review the findings before approving / rejecting. Visible to
+// everyone (staff sees it for context too). Links into the public
+// AssessmentView (review_status gating still applies; if the assessment
+// hasn't been forwarded, the page will show the not-yet-shared notice).
+function SourceAssessmentCard({ rwa, plate }) {
+  return (
+    <div className="bg-indigo-50 border-2 border-indigo-200 rounded-2xl p-4">
+      <div className="flex items-start gap-3">
+        <div className="text-2xl leading-none">🔍</div>
+        <div className="flex-1 min-w-0">
+          <div className="font-black text-indigo-900 text-sm">Roadworthy assessment available</div>
+          <div className="text-xs text-indigo-800 mt-1">
+            This quotation is built from the technical findings of assessment{' '}
+            <span className="font-mono font-bold">{rwa}</span>{plate ? ` on ${plate}` : ''}. Open it to see exactly which items
+            were flagged and why — useful before approving the line items below.
+          </div>
+          <Link
+            to={`/assessments/${rwa}`}
+            className="inline-block mt-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-full shadow"
+          >
+            View assessment findings →
+          </Link>
         </div>
       </div>
     </div>

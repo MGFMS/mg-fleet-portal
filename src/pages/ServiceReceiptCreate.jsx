@@ -185,6 +185,7 @@ export default function ServiceReceiptCreate({ kind = 'receipt' }) {
         scheduleType: 'SCHEDULED',
         items,
         notes,
+        sourceAssessmentRwa: fromAssessment || null,
         byProfile: profile,
       })
       navigate(`/service-receipts/${code}`)

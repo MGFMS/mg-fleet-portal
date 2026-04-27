@@ -700,6 +700,10 @@ export async function createReceipt(kind, data) {
     estimatedTotal: laborTotal + materialsTotal,
     missingParts: Number(data.missingParts) || 0,
     notes: data.notes || '',
+    // Round 30 — link back to the assessment that drove this quote so
+    // the client can review findings before approving + downstream
+    // pages can deep-link to it.
+    sourceAssessmentRwa: data.sourceAssessmentRwa || null,
     // Quotations start at DRAFT and walk the approval chain; receipts stay
     // on the legacy OPEN/PAID/CANCELLED flow until Round 12.
     status: kind === 'quotation' ? QUOT_STATUS.DRAFT : 'OPEN',
