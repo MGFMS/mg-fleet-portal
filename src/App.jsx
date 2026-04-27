@@ -34,6 +34,8 @@ import BranchInvoices from './pages/BranchInvoices'
 import BranchInvoiceDetails from './pages/BranchInvoiceDetails'
 import ClientInvoices from './pages/ClientInvoices'
 import ClientInvoiceDetails from './pages/ClientInvoiceDetails'
+import CreditNotes from './pages/CreditNotes'
+import CreditNoteDetails from './pages/CreditNoteDetails'
 
 import FleetCompanies from './pages/admin/FleetCompanies'
 import Users from './pages/admin/Users'
@@ -91,6 +93,10 @@ export default function App() {
           {/* Client Invoices (MG Fleet → fleet client, Round 13) */}
           <Route path="/client-invoices"       element={<ProtectedRoute allowedCategories={INTERNAL}><ClientInvoices /></ProtectedRoute>} />
           <Route path="/client-invoices/:code" element={<ProtectedRoute allowedCategories={BOTH}><ClientInvoiceDetails /></ProtectedRoute>} />
+
+          {/* Credit Notes (escape hatch for already-paid/billed invoices, Round 15) */}
+          <Route path="/credit-notes"          element={<ProtectedRoute allowedCategories={INTERNAL}><CreditNotes /></ProtectedRoute>} />
+          <Route path="/credit-notes/:code"    element={<ProtectedRoute allowedCategories={BOTH}><CreditNoteDetails /></ProtectedRoute>} />
 
           <Route path="/reports"               element={<ProtectedRoute allowedCategories={INTERNAL}><Reports /></ProtectedRoute>} />
 

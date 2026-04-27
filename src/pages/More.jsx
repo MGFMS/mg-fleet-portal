@@ -140,6 +140,7 @@ function StaffMenu({ profile }) {
         <Row to="/quotations/unbilled" icon="doc" label="Services for Quotation" />
         <Row to="/branch-invoices" icon="doc" label="Branch Invoices" />
         <Row to="/client-invoices" icon="doc" label="Client Invoices" />
+        <Row to="/credit-notes" icon="doc" label="Credit Notes" />
         <Row to="/reports" icon="backlog" label="Reports" />
       </div>
 

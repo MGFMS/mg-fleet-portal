@@ -17,6 +17,8 @@ import {
   PAYMENT_METHODS,
 } from '../lib/clientInvoices'
 import { getFleetCompanyByName } from '../lib/fleetCompanies'
+import { CREDIT_NOTE_KIND } from '../lib/creditNotes'
+import CreditNotesSection from '../components/CreditNotesSection'
 import Icon from '../components/ui/Icon'
 import PageHero from '../components/ui/PageHero'
 import StatusPill from '../components/ui/StatusPill'
@@ -123,6 +125,8 @@ export default function BranchInvoiceDetails() {
         <ItemsCard invoice={invoice} />
 
         <PaymentsCard invoice={invoice} />
+
+        <CreditNotesSection invoice={invoice} kind={CREDIT_NOTE_KIND.BRANCH} profile={profile} />
 
         <TotalsCard invoice={invoice} balance={balance} paid={paid} />
       </div>

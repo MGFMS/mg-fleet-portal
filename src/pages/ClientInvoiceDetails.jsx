@@ -11,6 +11,8 @@ import { useAuth } from '../context/AuthContext'
 import { formatMoney, formatDate, formatDateTime } from '../lib/dummyData'
 import { isCustomer } from '../lib/roles'
 import { profileCompany } from '../lib/vehicles'
+import { CREDIT_NOTE_KIND } from '../lib/creditNotes'
+import CreditNotesSection from '../components/CreditNotesSection'
 import {
   CLIENT_INVOICE_STATUS,
   PAYMENT_METHODS,
@@ -146,6 +148,13 @@ export default function ClientInvoiceDetails() {
         <ItemsCard invoice={invoice} />
 
         <PaymentsCard invoice={invoice} customerView={customerView} />
+
+        <CreditNotesSection
+          invoice={invoice}
+          kind={CREDIT_NOTE_KIND.CLIENT}
+          profile={profile}
+          customerView={customerView}
+        />
 
         <TotalsCard invoice={invoice} balance={balance} paid={paid} />
       </div>

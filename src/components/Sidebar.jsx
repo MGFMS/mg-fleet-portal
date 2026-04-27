@@ -132,6 +132,7 @@ export default function Sidebar() {
         <Item to="/quotations/unbilled" label="Services for Quotation" />
         <Item to="/branch-invoices" label="Branch Invoices" />
         <Item to="/client-invoices" label="Client Invoices" />
+        <Item to="/credit-notes" label="Credit Notes" />
         <Item to="/reports" label="Reports" />
       </Section>
       <Section title="Data Management">

@@ -372,8 +372,14 @@ export function paymentsTotal(invoice) {
   return arr.reduce((s, p) => s + (Number(p?.amount) || 0), 0)
 }
 
+// Active (non-VOID) credit-note total stamped onto the invoice by the
+// creditNotes module. Subtracted from the balance just like payments.
+export function creditNotesTotal(invoice) {
+  return Number(invoice?.creditNotesTotal) || 0
+}
+
 export function balanceDue(invoice) {
-  return Math.max(0, (Number(invoice?.total) || 0) - paymentsTotal(invoice))
+  return Math.max(0, (Number(invoice?.total) || 0) - paymentsTotal(invoice) - creditNotesTotal(invoice))
 }
 
 // Aging proxies — exact same logic as client invoices, just with the branch
@@ -410,10 +416,12 @@ export async function recordBranchPayment(id, { amount, method, reference, paidA
     const prevTotal = (inv.payments || []).reduce((s, p) => s + (Number(p?.amount) || 0), 0)
     const newPaymentsTotal = prevTotal + amt
     const total = Number(inv.total) || 0
-    if (newPaymentsTotal > total + 0.01) {
-      throw new Error(`Payment exceeds outstanding balance (₱${(total - prevTotal).toFixed(2)} remaining).`)
+    const cnTotal = Number(inv.creditNotesTotal) || 0
+    const remaining = total - prevTotal - cnTotal
+    if (amt > remaining + 0.01) {
+      throw new Error(`Payment exceeds outstanding balance (₱${remaining.toFixed(2)} remaining).`)
     }
-    const newBalance = Math.max(0, total - newPaymentsTotal)
+    const newBalance = Math.max(0, total - newPaymentsTotal - cnTotal)
     const flipsToPaid = newBalance <= 0.01
 
     const payment = {
