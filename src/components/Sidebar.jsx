@@ -124,18 +124,14 @@ export default function Sidebar() {
         <Item to="/home" label="My Garage" />
         <Item to="/home/my-mechanics" label="My Mechanics" />
         <Item to="/appointments?quicklink=yes" label="+ Booking" />
-        <Item to="/service-receipts/create" label="+ Service Receipt" />
         <Item to="/home/notifications" label="Notifications" />
       </Section>
       <Section title="Core Operations">
         <Item to="/appointments" label="Service Bookings" />
-        <Item to="/service-receipts" label="Service Receipts" />
         <Item to="/quotations" label="Service Quotations" />
-        <Item to="/quotations/unbilled" label="Services for Quotation" />
         <Item to="/branch-invoices" label="Branch Invoices" />
         <Item to="/client-invoices" label="Client Invoices" />
         <Item to="/credit-notes" label="Credit Notes" />
-        <Item to="/reports/receivables" label="Receivables Aging" />
         <Item to="/reports" label="Reports" />
       </Section>
       <Section title="Data Management">

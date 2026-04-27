@@ -133,17 +133,14 @@ function StaffMenu({ profile }) {
       <div className="bg-white divide-y">
         <Row to="/home/my-mechanics" icon="user" label="My Mechanics" />
         <Row to="/appointments?quicklink=yes" icon="plus" label="+ Booking" />
-        <Row to="/service-receipts/create" icon="plus" label="+ Service Receipt" />
       </div>
 
       <SectionHeader>Core Operations</SectionHeader>
       <div className="bg-white divide-y">
         <Row to="/quotations" icon="doc" label="Service Quotations" />
-        <Row to="/quotations/unbilled" icon="doc" label="Services for Quotation" />
         <Row to="/branch-invoices" icon="doc" label="Branch Invoices" />
         <Row to="/client-invoices" icon="doc" label="Client Invoices" />
         <Row to="/credit-notes" icon="doc" label="Credit Notes" />
-        <Row to="/reports/receivables" icon="backlog" label="Receivables Aging" />
         <Row to="/reports" icon="backlog" label="Reports" />
       </div>
 

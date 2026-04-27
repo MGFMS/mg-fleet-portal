@@ -34,6 +34,7 @@ const CUSTOMER_STATUSES = new Set([
 
 const STAFF_TABS = [
   { key: 'NEEDS_ACTION',                label: 'Needs action' },
+  { key: 'UNBILLED',                    label: 'Unbilled' },
   { key: QUOT_STATUS.DRAFT,             label: 'Draft' },
   { key: QUOT_STATUS.FOR_MG_FLEET_REVIEW, label: 'MG Fleet' },
   { key: QUOT_STATUS.FOR_CLIENT_REVIEW,   label: 'Client' },
@@ -85,6 +86,10 @@ export default function Quotations({ unbilledOnly = false, customerView: custome
       if (statusTab === 'NEEDS_ACTION') {
         const actions = availableQuotationActions(q, profile)
         if (actions.length === 0) return false
+      } else if (statusTab === 'UNBILLED') {
+        // Round 28 — unbilled = not yet APPROVED_FINAL. Same semantics
+        // as the legacy /quotations/unbilled route's unbilledOnly prop.
+        if (s === QUOT_STATUS.APPROVED_FINAL) return false
       } else if (statusTab !== 'ALL' && s !== statusTab) {
         return false
       }
@@ -97,6 +102,7 @@ export default function Quotations({ unbilledOnly = false, customerView: custome
   const counts = useMemo(() => {
     const c = {
       NEEDS_ACTION: 0,
+      UNBILLED: 0,
       ALL: visible.length,
       [QUOT_STATUS.DRAFT]: 0,
       [QUOT_STATUS.FOR_MG_FLEET_REVIEW]: 0,
@@ -109,6 +115,7 @@ export default function Quotations({ unbilledOnly = false, customerView: custome
       const s = effectiveQuotationStatus(q)
       if (c[s] != null) c[s]++
       if (availableQuotationActions(q, profile).length > 0) c.NEEDS_ACTION++
+      if (s !== QUOT_STATUS.APPROVED_FINAL) c.UNBILLED++
     }
     return c
   }, [visible, profile])
