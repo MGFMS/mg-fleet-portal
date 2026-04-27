@@ -10,6 +10,10 @@ import { formatMoney, formatDate } from '../lib/dummyData'
 import {
   BRANCH_INVOICE_STATUS, voidBranchInvoice, watchBranchInvoiceByCode,
 } from '../lib/branchInvoices'
+import {
+  generateClientInvoice, findClientInvoiceForBranchInvoice,
+} from '../lib/clientInvoices'
+import { getFleetCompanyByName } from '../lib/fleetCompanies'
 import Icon from '../components/ui/Icon'
 import PageHero from '../components/ui/PageHero'
 import StatusPill from '../components/ui/StatusPill'
@@ -86,6 +90,8 @@ export default function BranchInvoiceDetails() {
 
         <LinkedDocsCard invoice={invoice} />
 
+        <ClientBillCard invoice={invoice} profile={profile} />
+
         <CustomerCard invoice={invoice} />
 
         <ItemsCard invoice={invoice} />
@@ -129,6 +135,126 @@ export default function BranchInvoiceDetails() {
           onVoided={() => setVoidModalOpen(false)}
         />
       )}
+    </div>
+  )
+}
+
+// Shows the next step in the finance flow: did MG Fleet bill the client yet?
+//   - Walk-in / no fleet company → not applicable.
+//   - Already billed → link to the existing CINV-#####.
+//   - Branch invoice voided → not applicable (can't bill a voided source).
+//   - Otherwise → "Generate Client Invoice" CTA (finance / admin only).
+function ClientBillCard({ invoice, profile }) {
+  const navigate = useNavigate()
+  const [existing, setExisting] = useState(null)
+  const [loaded, setLoaded] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    if (!invoice?.id) return
+    findClientInvoiceForBranchInvoice(invoice.id).then((found) => {
+      if (cancelled) return
+      setExisting(found)
+      setLoaded(true)
+    }).catch(() => {
+      if (cancelled) return
+      setLoaded(true)
+    })
+    return () => { cancelled = true }
+  }, [invoice?.id, invoice?.clientInvoiceCode])
+
+  if (!invoice.company) {
+    return (
+      <div className="bg-white rounded-2xl border overflow-hidden">
+        <div className="bg-gray-50 border-b px-4 py-2.5 text-[11px] uppercase tracking-widest font-bold text-gray-500">
+          Client Invoice
+        </div>
+        <div className="p-4 text-sm text-gray-500 italic">
+          Walk-in customer — no client billing applies. Branch was paid directly.
+        </div>
+      </div>
+    )
+  }
+
+  if (invoice.status === BRANCH_INVOICE_STATUS.VOID) {
+    return (
+      <div className="bg-white rounded-2xl border overflow-hidden">
+        <div className="bg-gray-50 border-b px-4 py-2.5 text-[11px] uppercase tracking-widest font-bold text-gray-500">
+          Client Invoice
+        </div>
+        <div className="p-4 text-sm text-gray-500 italic">
+          Cannot bill a voided source. If a client invoice was already issued, void it from its detail page.
+        </div>
+      </div>
+    )
+  }
+
+  // Either deep-link from the cross-stamp on the branch invoice doc, or from
+  // the live look-up. Both should converge once the listener tick lands.
+  const billed = existing || (invoice.clientInvoiceCode ? { code: invoice.clientInvoiceCode } : null)
+  const canGenerate = profile?.is_admin || profile?.role === 'finance'
+
+  const handleGenerate = async () => {
+    if (generating) return
+    setGenerating(true); setError(null)
+    try {
+      const company = await getFleetCompanyByName(invoice.company)
+      const terms = company?.paymentTerms || 'NET_30'
+      const created = await generateClientInvoice(invoice.id, { companyTerms: terms, byProfile: profile })
+      navigate(`/client-invoices/${created.code}`)
+    } catch (err) {
+      console.error('[branchInvoice] generate client failed:', err)
+      setError(err.message || String(err))
+      setGenerating(false)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border overflow-hidden">
+      <div className="bg-gray-50 border-b px-4 py-2.5 text-[11px] uppercase tracking-widest font-bold text-gray-500">
+        Client Invoice
+      </div>
+      <div className="p-4 space-y-3">
+        {!loaded && <div className="text-sm text-gray-400">Checking…</div>}
+
+        {loaded && billed && (
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Billed to client</div>
+              <Link to={`/client-invoices/${billed.code}`} className="text-brand font-mono font-black text-base hover:underline">
+                {billed.code}
+              </Link>
+            </div>
+            <Link
+              to={`/client-invoices/${billed.code}`}
+              className="bg-brand hover:bg-brand-dark text-white font-bold text-sm px-4 py-2 rounded-xl"
+            >
+              View →
+            </Link>
+          </div>
+        )}
+
+        {loaded && !billed && (
+          <>
+            <p className="text-xs text-gray-600">
+              Bill <strong>{invoice.company}</strong> for this work. Items + totals will be copied as-is from this branch invoice;
+              due date is set from the company's payment terms.
+            </p>
+            <button
+              type="button"
+              onClick={handleGenerate}
+              disabled={generating || !canGenerate}
+              className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-sm px-4 py-3 rounded-xl active:scale-95 transition-transform"
+              title={canGenerate ? 'Generate client invoice' : 'Only finance or admin can issue a client invoice'}
+            >
+              {generating ? 'Generating…' : 'Generate Client Invoice'}
+            </button>
+            {error && <div className="text-[11px] text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1.5">Failed: {error}</div>}
+          </>
+        )}
+      </div>
     </div>
   )
 }
