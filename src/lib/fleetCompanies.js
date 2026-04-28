@@ -2,11 +2,13 @@ import {
   addDoc,
   collection,
   doc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
   updateDoc,
+  where,
 } from 'firebase/firestore'
 import { auth, db } from './firebase'
 
@@ -29,12 +31,16 @@ export function watchFleetCompanies(onNext, onError) {
   )
 }
 
+const VALID_PAYMENT_TERMS = ['CASH', 'NET_30', 'NET_60', 'NET_90']
+
 function normalizeWritable(data) {
+  const terms = String(data.paymentTerms || 'NET_30').toUpperCase()
   const payload = {
     name: (data.name || '').trim(),
     code: (data.code || '').trim().toUpperCase(),
     contactEmail: (data.contactEmail || '').trim(),
     contactPhone: (data.contactPhone || '').trim(),
+    paymentTerms: VALID_PAYMENT_TERMS.includes(terms) ? terms : 'NET_30',
     isActive: data.isActive !== false,
   }
   if (!payload.name) throw new Error('Company name is required.')
@@ -63,6 +69,17 @@ export async function updateFleetCompany(id, data) {
     updatedAt: serverTimestamp(),
     updatedBy: uid,
   })
+}
+
+// Look up a fleet company by its display name. Used when the only handle we
+// have is the denormalized `company` string on a branch invoice / quotation
+// (the portal joins on name, not on id, to stay compatible with mg-fms).
+// Returns null if not found.
+export async function getFleetCompanyByName(name) {
+  if (!db || !name) return null
+  const snap = await getDocs(query(collection(db, COLLECTION), where('name', '==', name)))
+  if (snap.empty) return null
+  return { id: snap.docs[0].id, ...snap.docs[0].data() }
 }
 
 export async function setFleetCompanyActive(id, isActive) {

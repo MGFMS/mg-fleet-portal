@@ -167,9 +167,19 @@ function toVehicle(assessment, pmsRecord) {
     plateNo: plate,
     brand: h.make || '',
     model: h.model || '',
+    // Round 36 — caviteIds when the assessment was created with the
+    // make/model dropdown picker. Used by the quote autocomplete to
+    // filter the catalog without a fuzzy name lookup.
+    caviteMakeId: Number.isFinite(Number(h.makeId)) ? Number(h.makeId) : null,
+    caviteModelId: Number.isFinite(Number(h.modelId)) ? Number(h.modelId) : null,
     brandModel: h.make && h.model ? `${h.make} - ${h.model}` : (h.make || h.model || ''),
     yearModel: h.yearModel || '',
-    assignedTo: h.technician || '',
+    // Round 25a — was `h.technician`. The technician on an assessment is
+    // the field assessor, NOT the driver / custodian. That leak made the
+    // assessor's name appear as the customer on every invoice. Until we
+    // capture a real driver name on bookings, leave this empty so the
+    // quote create page doesn't auto-stuff a wrong value.
+    assignedTo: '',
     latestOdo: odo,
     roadworthy: bucket,
     company: h.client || null,
@@ -332,7 +342,7 @@ function buildHistoryFromAssessments(assessments /* , pmsRecord */) {
 export async function loadVehiclesForUser(profile) {
   return new Promise((resolve) => {
     const unsub = watchVehicles(
-      { company: profileCompany(profile), dummyFallback: true },
+      { company: profileCompany(profile) },
       ({ vehicles, source }) => {
         unsub()
         resolve({ rows: vehicles, source })

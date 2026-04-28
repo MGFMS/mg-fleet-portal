@@ -34,6 +34,7 @@ const CUSTOMER_STATUSES = new Set([
 
 const STAFF_TABS = [
   { key: 'NEEDS_ACTION',                label: 'Needs action' },
+  { key: 'UNBILLED',                    label: 'Unbilled' },
   { key: QUOT_STATUS.DRAFT,             label: 'Draft' },
   { key: QUOT_STATUS.FOR_MG_FLEET_REVIEW, label: 'MG Fleet' },
   { key: QUOT_STATUS.FOR_CLIENT_REVIEW,   label: 'Client' },
@@ -64,7 +65,7 @@ export default function Quotations({ unbilledOnly = false, customerView: custome
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    const opts = { kind: 'quotation', dummyFallback: !customerView }
+    const opts = { kind: 'quotation' }
     if (companyFilter) opts.company = companyFilter
     const unsub = watchReceipts(opts, ({ rows, source }) => {
       setRows(rows); setSource(source)
@@ -85,6 +86,10 @@ export default function Quotations({ unbilledOnly = false, customerView: custome
       if (statusTab === 'NEEDS_ACTION') {
         const actions = availableQuotationActions(q, profile)
         if (actions.length === 0) return false
+      } else if (statusTab === 'UNBILLED') {
+        // Round 28 — unbilled = not yet APPROVED_FINAL. Same semantics
+        // as the legacy /quotations/unbilled route's unbilledOnly prop.
+        if (s === QUOT_STATUS.APPROVED_FINAL) return false
       } else if (statusTab !== 'ALL' && s !== statusTab) {
         return false
       }
@@ -97,6 +102,7 @@ export default function Quotations({ unbilledOnly = false, customerView: custome
   const counts = useMemo(() => {
     const c = {
       NEEDS_ACTION: 0,
+      UNBILLED: 0,
       ALL: visible.length,
       [QUOT_STATUS.DRAFT]: 0,
       [QUOT_STATUS.FOR_MG_FLEET_REVIEW]: 0,
@@ -109,6 +115,7 @@ export default function Quotations({ unbilledOnly = false, customerView: custome
       const s = effectiveQuotationStatus(q)
       if (c[s] != null) c[s]++
       if (availableQuotationActions(q, profile).length > 0) c.NEEDS_ACTION++
+      if (s !== QUOT_STATUS.APPROVED_FINAL) c.UNBILLED++
     }
     return c
   }, [visible, profile])
@@ -147,9 +154,9 @@ export default function Quotations({ unbilledOnly = false, customerView: custome
         right={<HeroStat value={needsActionCount} label="TO ACT" tone="solid" />}
       />
 
-      {source === 'dummy' && (
-        <div className="mx-3 sm:mx-6 mt-3 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-          Showing demo data.
+      {source === 'error' && (
+        <div className="mx-3 sm:mx-6 mt-3 text-[11px] text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
+          Read blocked — check Firestore rules.
         </div>
       )}
       {error && (
@@ -191,8 +198,14 @@ export default function Quotations({ unbilledOnly = false, customerView: custome
         {/* Mobile: card list */}
         <div className="lg:hidden space-y-3">
           {filtered.length === 0 && (
-            <div className="bg-white rounded-2xl border border-dashed p-6 text-center text-gray-400 text-sm">
-              No quotations match.
+            <div className="bg-white rounded-2xl border border-dashed p-6 text-center text-sm">
+              <div className="text-gray-400">No quotations match.</div>
+              {!customerView && rows.length === 0 && (
+                <div className="text-xs text-gray-500 mt-3">
+                  Quotations are created from assessments.{' '}
+                  <Link to="/appointments" className="text-brand font-bold hover:underline">Open Service Bookings →</Link>
+                </div>
+              )}
             </div>
           )}
           {filtered.map((q) => (
@@ -268,9 +281,13 @@ export default function Quotations({ unbilledOnly = false, customerView: custome
 
       {!customerView && (
         <div className="fixed bottom-20 md:bottom-6 right-4 sm:right-6 z-20">
-          <Link to="/quotations/create" className="bg-brand hover:bg-brand-dark text-white px-4 sm:px-5 py-3 rounded-full font-bold text-sm flex items-center gap-2 shadow-xl">
+          <Link
+            to="/appointments"
+            className="bg-brand hover:bg-brand-dark text-white px-4 sm:px-5 py-3 rounded-full font-bold text-sm flex items-center gap-2 shadow-xl"
+            title="Quotations start from a booking → assessment. This takes you to the Bookings list."
+          >
             <Icon name="plus" className="w-4 h-4" />
-            New Quotation
+            New from Booking
           </Link>
         </div>
       )}

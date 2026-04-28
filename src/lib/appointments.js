@@ -6,8 +6,8 @@ import {
   serverTimestamp, updateDoc, where,
 } from 'firebase/firestore'
 import { auth, db } from './firebase'
-import { APPOINTMENTS as DUMMY } from './dummyData'
 import { emitNotification, fetchContextDoc } from './notifications'
+import { hasApprovedQuotationForPlate } from './serviceReceipts'
 
 const COLLECTION = 'appointments'
 
@@ -33,22 +33,32 @@ export const APPT_STATUS = Object.freeze({
 })
 
 export function watchAppointments(options, cb) {
-  if (!db) { cb({ rows: DUMMY, source: 'dummy', loading: false, error: null }); return () => {} }
-  let q = query(collection(db, COLLECTION), orderBy('scheduledAt', 'desc'))
-  if (options?.branch) q = query(collection(db, COLLECTION), where('branch', '==', options.branch), orderBy('scheduledAt', 'desc'))
+  if (!db) { cb({ rows: [], source: 'unconfigured', loading: false, error: null }); return () => {} }
+  // Round 31 — dummy fallback removed; production users now see an
+  // empty list when there's no real data.
+  // Drop orderBy when filtered to avoid composite-index requirement.
+  let q
+  if (options?.branch) {
+    q = query(collection(db, COLLECTION), where('branch', '==', options.branch))
+  } else {
+    q = query(collection(db, COLLECTION), orderBy('scheduledAt', 'desc'))
+  }
   return onSnapshot(
     q,
     (snap) => {
       const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-      if (rows.length === 0 && options?.dummyFallback !== false) {
-        cb({ rows: DUMMY, source: 'dummy', loading: false, error: null })
-      } else {
-        cb({ rows, source: 'firestore', loading: false, error: null })
+      if (options?.branch) {
+        rows.sort((a, b) => {
+          const ax = Date.parse(a?.scheduledAt || '') || 0
+          const bx = Date.parse(b?.scheduledAt || '') || 0
+          return bx - ax
+        })
       }
+      cb({ rows, source: 'firestore', loading: false, error: null })
     },
     (err) => {
       console.warn('[appointments] listener error:', err)
-      cb({ rows: DUMMY, source: 'error', loading: false, error: err })
+      cb({ rows: [], source: 'error', loading: false, error: err })
     },
   )
 }
@@ -98,6 +108,21 @@ export async function createAppointment(payload) {
 export async function updateAppointmentStatus(id, nextStatus, note) {
   if (!db) throw new Error('Firestore not configured.')
   const uid = auth?.currentUser?.uid || null
+
+  // Round 11 gate — repair can only start on a fleet booking when the plate
+  // has at least one APPROVED_FINAL quotation. Walk-ins (no company) skip
+  // the gate by design. Pre-flight check so the UI gets a clear error before
+  // Firestore gets the write.
+  if (nextStatus === APPT_STATUS.ONGOING) {
+    const current = await fetchContextDoc(COLLECTION, id)
+    if (current?.company) {
+      const approved = await hasApprovedQuotationForPlate(current.plateNo)
+      if (!approved) {
+        throw new Error('Cannot start repair: the quotation for this plate has not been fully approved yet.')
+      }
+    }
+  }
+
   await updateDoc(doc(db, COLLECTION, id), {
     status: nextStatus,
     ...(note ? { note } : {}),
@@ -178,6 +203,31 @@ export async function getActiveAppointmentsByPlate(plate) {
   } catch (err) {
     console.warn('[appointments] getActiveAppointmentsByPlate failed:', err)
     return []
+  }
+}
+
+// Most recent appointment for a plate regardless of status. Used by the
+// invoice gate-fail card to deep-link the user back into the assessment
+// flow when the post-repair re-assessment hasn't happened yet.
+export async function getMostRecentAppointmentByPlate(plate) {
+  if (!db || !plate) return null
+  const norm = String(plate).toUpperCase().replace(/\s+/g, '')
+  try {
+    const snap = await getDocs(query(
+      collection(db, COLLECTION),
+      where('plateNo', '==', norm),
+    ))
+    const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    if (rows.length === 0) return null
+    rows.sort((a, b) => {
+      const ax = Date.parse(a.scheduledAt || '') || 0
+      const bx = Date.parse(b.scheduledAt || '') || 0
+      return bx - ax
+    })
+    return rows[0]
+  } catch (err) {
+    console.warn('[appointments] getMostRecentAppointmentByPlate failed:', err)
+    return null
   }
 }
 

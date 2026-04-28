@@ -55,6 +55,32 @@ export async function getLatestAssessmentForPlate(plateRaw) {
   }
 }
 
+// Every assessment for a plate, newest first. Used by finance features
+// (Round 12 invoicing gate) to check for a post-repair reassessment. Same
+// scan-and-filter pattern as getOutstandingDeferredForPlate — fine at
+// fleet-customer scale, fold into an indexed `header.plate` field later
+// if the assessments collection grows past ~low thousands.
+export async function getAssessmentsForPlate(plateRaw) {
+  if (!db || !plateRaw) return []
+  const plate = String(plateRaw).toUpperCase().replace(/\s+/g, '')
+  try {
+    const snap = await getDocs(query(
+      collection(db, 'assessments'),
+      orderBy('submittedAt', 'desc'),
+    ))
+    const out = []
+    for (const d of snap.docs) {
+      const data = d.data()
+      const p = String(data?.header?.plate || '').toUpperCase().replace(/\s+/g, '')
+      if (p === plate) out.push({ _docId: d.id, ...data })
+    }
+    return out
+  } catch (err) {
+    console.warn('[assessments] getAssessmentsForPlate failed:', err?.message || err)
+    return []
+  }
+}
+
 // All outstanding (not-yet-resolved) deferred assessments for a plate. Used
 // when submitting a Re-Assessment that comes back active/conditional — we
 // stamp resolvedByRwa/resolvedAt on these so the fleet view stops flagging
@@ -231,7 +257,7 @@ export function generateRwa(now = Date.now()) {
 //       type, date }
 //
 // returns { id, rwaNumber, classification }
-export async function createAssessment({ appointmentId, header, itemResults, pmsData }) {
+export async function createAssessment({ appointmentId, header, itemResults, pmsData, labors, otherLabor }) {
   if (!db) throw new Error('Firestore not configured.')
 
   const now = Date.now()
@@ -245,6 +271,13 @@ export async function createAssessment({ appointmentId, header, itemResults, pms
     itemResults: { ...(itemResults || {}) },
     classification,
     pmsData: pmsData || null,
+    // Round 18 — labor types declared at assessment time. Used by the
+    // smart-quote prefill to bundle multiple inspection findings under
+    // one labor line (e.g. several PMS items → one "Preventive
+    // Maintenance Service" line). Optional — older assessments without
+    // this field still work; the prefill falls back to per-item labor.
+    labors: Array.isArray(labors) ? labors : null,
+    otherLabor: otherLabor || null,
     fmsStatus: 'synced',
     submittedAt: new Date(now).toISOString(),
     appointmentId: appointmentId || null, // portal-only linkage

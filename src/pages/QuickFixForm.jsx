@@ -11,8 +11,9 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ALL_ITEMS, DEFECT_CODES, LABOR_TYPES,
+  ALL_ITEMS, DEFECT_CODES, INSP_TO_PMS, LABOR_TYPES, PMS_MAP,
 } from '../lib/mgfms-catalog'
+import { getApprovedQuotationForPlate } from '../lib/serviceReceipts'
 import PhotoCapture from '../components/PhotoCapture'
 
 const DRAFT_VERSION = 1
@@ -61,6 +62,77 @@ export default function QuickFixForm({ appointmentId, prevAssessment, header, on
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
+  // Round 38 — prefill partReplaced + qty from the approved quote
+  // for this plate. Matches each flagged item to a quote line via
+  // its PMS-link label first, then falls back to the inspection
+  // item's own label. Skips items the user has already started
+  // filling in. Runs once per mount.
+  const [quoteCode, setQuoteCode] = useState(null)
+  useEffect(() => {
+    if (!header?.plate) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const quot = await getApprovedQuotationForPlate(header.plate)
+        if (cancelled || !quot || !Array.isArray(quot.items)) return
+        setQuoteCode(quot.code || null)
+
+        // Build a list of non-Labor quote lines with cleaned descriptions
+        // (strip "(Monitor) " / "Replace " / defect-suffix) so substring
+        // match against inspection-item labels is reliable.
+        const partsLines = quot.items
+          .filter((qi) => qi.type !== 'Labor')
+          .map((qi) => {
+            let clean = String(qi.description || '').trim()
+            clean = clean.replace(/^\([^)]*\)\s+/, '')        // (Monitor)
+            clean = clean.replace(/^Replace\s+/i, '')           // verb
+            clean = clean.replace(/\s+—\s+.*$/, '')             // — defect
+            return { ...qi, _clean: clean.toUpperCase() }
+          })
+
+        if (partsLines.length === 0) return
+
+        setRepairs((prev) => {
+          const next = { ...prev }
+          for (const item of flagged) {
+            const cur = prev[item.code]
+            // Don't overwrite anything the assessor already touched.
+            if (cur?.partReplaced || cur?.skip) continue
+
+            // Try the PMS-linked label first ("Engine Oil"), then the
+            // inspection item's own label ("Engine oil — condition & level").
+            const pmsCode = INSP_TO_PMS[item.code]
+            const candidates = [
+              pmsCode && PMS_MAP[pmsCode]?.label,
+              item.label,
+            ].filter(Boolean).map((s) => String(s).toUpperCase())
+
+            let match = null
+            for (const candidate of candidates) {
+              match = partsLines.find((line) =>
+                line._clean.includes(candidate) || candidate.includes(line._clean),
+              )
+              if (match) break
+            }
+            if (match) {
+              next[item.code] = {
+                ...cur,
+                partReplaced: match._clean,           // cleaned name, no verb
+                qty: Number(match.qty) || cur?.qty || 1,
+                _fromQuote: quot.code || true,         // surfaced as a small badge
+              }
+            }
+          }
+          return next
+        })
+      } catch (err) {
+        console.warn('[QuickFix] quote prefill failed:', err)
+      }
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [header?.plate])
+
   // Persist draft on change.
   const saveTimerRef = useRef(null)
   useEffect(() => {
@@ -91,8 +163,52 @@ export default function QuickFixForm({ appointmentId, prevAssessment, header, on
     return true
   })
 
+  // Round 23 — when the user clicks Submit on incomplete work, find the
+  // first issue, scroll to it, focus the missing field, and surface a
+  // specific message. Better than a silently-disabled button.
+  const findFirstBlocker = () => {
+    if (flagged.length === 0) return { kind: 'no-flagged' }
+    for (const i of flagged) {
+      const r = repairs[i.code] || {}
+      if (r.skip) continue
+      if (!r.partReplaced || !r.partReplaced.trim()) {
+        return { kind: 'missing-part', item: i, fieldId: `fix-${i.code}-part`, message: `Enter the part replaced for "${i.label}", or mark it Skip.` }
+      }
+      if (i.type === 'measurable' && !r.afterMeasure) {
+        return { kind: 'missing-measure', item: i, fieldId: `fix-${i.code}-measure`, message: `Enter the after-repair measurement (${i.unit || ''}) for "${i.label}".` }
+      }
+      // No explicit Repair/Skip pick yet — r.skip is undefined.
+      if (r.skip == null && !r.partReplaced) {
+        return { kind: 'undecided', item: i, fieldId: null, message: `Pick Repair or Skip for "${i.label}".` }
+      }
+    }
+    return null
+  }
+
+  const jumpTo = (blocker) => {
+    if (!blocker) return
+    const cardId = blocker.item ? `fix-item-${blocker.item.code}` : null
+    if (cardId) {
+      const el = document.getElementById(cardId)
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+    // Focus a beat after scroll starts so the smooth-scroll isn't interrupted.
+    if (blocker.fieldId) {
+      setTimeout(() => {
+        const input = document.getElementById(blocker.fieldId)
+        if (input) input.focus()
+      }, 250)
+    }
+    setError(blocker.message)
+  }
+
   const handleSubmit = async () => {
-    if (!canSubmit || saving) return
+    if (saving) return
+    if (!canSubmit) {
+      const blocker = findFirstBlocker()
+      jumpTo(blocker)
+      return
+    }
     setSaving(true); setError(null)
     try {
       // Patch the item results: flagged items become `replaced` with the
@@ -164,7 +280,8 @@ export default function QuickFixForm({ appointmentId, prevAssessment, header, on
           return (
             <div
               key={item.code}
-              className={`rounded-2xl border-2 overflow-hidden ${skipped ? 'border-gray-300 opacity-70' : isCrit ? 'border-red-300' : 'border-amber-300'} bg-white`}
+              id={`fix-item-${item.code}`}
+              className={`rounded-2xl border-2 overflow-hidden ${skipped ? 'border-gray-300 opacity-70' : isCrit ? 'border-red-300' : 'border-amber-300'} bg-white scroll-mt-4`}
             >
               <div className={`px-4 py-3 flex items-start gap-2 ${skipped ? 'bg-gray-100' : isCrit ? 'bg-red-50' : 'bg-amber-50'}`}>
                 <span className={`shrink-0 text-xs font-black px-2 py-1 rounded-lg ${isCrit ? 'bg-red-600 text-white' : 'bg-amber-500 text-white'}`}>
@@ -212,10 +329,18 @@ export default function QuickFixForm({ appointmentId, prevAssessment, header, on
               ) : (
                 <div className="p-4 space-y-3">
                   <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">
-                      Part Replaced *
-                    </label>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                        Part Replaced *
+                      </label>
+                      {r._fromQuote && (
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-700 bg-emerald-100 rounded-full px-2 py-0.5">
+                          From quote {typeof r._fromQuote === 'string' ? r._fromQuote : ''}
+                        </span>
+                      )}
+                    </div>
                     <input
+                      id={`fix-${item.code}-part`}
                       value={r.partReplaced || ''}
                       onChange={(e) => updateRepair(item.code, 'partReplaced', e.target.value)}
                       placeholder="e.g. Brake Pad Set (Front)"
@@ -252,6 +377,7 @@ export default function QuickFixForm({ appointmentId, prevAssessment, header, on
                           After ({item.unit}) *
                         </label>
                         <input
+                          id={`fix-${item.code}-measure`}
                           type="number"
                           step="0.01"
                           value={r.afterMeasure || ''}
@@ -351,17 +477,20 @@ export default function QuickFixForm({ appointmentId, prevAssessment, header, on
         style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0))' }}
       >
         <div className="px-3 sm:px-4 py-3 flex items-center gap-2 sm:gap-3">
-          {error && <div className="text-[11px] text-red-700 flex-1 truncate">Save failed: {error}</div>}
+          {error && <div className="text-[11px] text-red-700 flex-1 truncate" title={error}>{error}</div>}
           <div className={`text-[11px] flex-1 min-w-0 ${error ? 'hidden' : ''}`}>
             {canSubmit
               ? <span className="text-gray-700"><span className="font-bold">{repairedCount}</span> repair{repairedCount === 1 ? '' : 's'}{skippedCount > 0 ? ` · ${skippedCount} skip` : ''}</span>
-              : <span className="text-gray-500">Fill in each repair or mark skip.</span>}
+              : <span className="text-gray-500">Tap Submit — we'll jump you to anything missing.</span>}
           </div>
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={!canSubmit || saving}
-            className="bg-brand hover:bg-brand-dark disabled:opacity-50 text-white font-bold text-sm px-5 py-2.5 rounded-xl shadow active:scale-95 transition-transform shrink-0"
+            disabled={saving}
+            className={`text-white font-bold text-sm px-5 py-2.5 rounded-xl shadow active:scale-95 transition-transform shrink-0 ${
+              canSubmit ? 'bg-brand hover:bg-brand-dark' : 'bg-amber-600 hover:bg-amber-700'
+            } ${saving ? 'opacity-50' : ''}`}
+            title={canSubmit ? '' : 'Some items still need a part replaced or a measurement — click to jump there.'}
           >
             {saving ? 'Submitting…' : 'Submit Quick Fix'}
           </button>

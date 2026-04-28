@@ -14,6 +14,8 @@ const STATUS_STYLES = {
   APPROVED:   'bg-green-600 text-white',
   DISAPPROVED:'bg-red-500 text-white',
   PAID:       'bg-blue-600 text-white',
+  OVERDUE:    'bg-red-600 text-white',
+  VOID:       'bg-slate-500 text-white',
   POST:       'bg-slate-600 text-white',
   TENTATIVE:  'bg-amber-500 text-white',
   CONFIRMED:  'bg-green-600 text-white',

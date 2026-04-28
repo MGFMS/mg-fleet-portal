@@ -184,6 +184,8 @@ export const LABOR_TYPES = [
   { code: 'LBR_OTHER',         label: 'Other',                          icon: '📝' },
 ]
 
+export const LABOR_TYPE_MAP = Object.fromEntries(LABOR_TYPES.map((l) => [l.code, l]))
+
 // ── Assessment types (ported from mg-fms-app/src/App.jsx:11) ───────────────
 // Same 4 values mg-fms writes to `header.type`. Keep labels identical so
 // both apps render the same badge text on the same records.

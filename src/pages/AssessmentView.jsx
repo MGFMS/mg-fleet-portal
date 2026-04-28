@@ -6,13 +6,14 @@
 // supervisor override card (if any). Read-only — no re-assess action.
 
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { collection, getDocs, limit, query, where } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { useAuth } from '../context/AuthContext'
 import { isClientView } from '../lib/roles'
 import { isVisibleToClient, statusBadge } from '../lib/reviewStatus'
 import { clearDispatchBySupervisor } from '../lib/assessments'
+import { getApprovedQuotationForPlate } from '../lib/serviceReceipts'
 import {
   ALL_ITEMS, CATEGORIES, DEFECT_CODES, PMS_ITEMS, SC, ACTION_CFG,
   calcHealthScore, healthColor, getAction,
@@ -146,6 +147,13 @@ export default function AssessmentView() {
       </div>
 
       <div className="px-3 sm:px-4 pt-4 space-y-4">
+        {/* ── Post-assessment CTA — internal only. If an APPROVED_FINAL
+            quote already exists for this plate (typical after a Re-
+            Assessment), point at it with "Proceed to Invoice". Otherwise
+            offer to create a fresh quote (typical after Initial /
+            Periodic / Pre-Dispatch). */}
+        {!clientView && <PostAssessCta a={a} />}
+
         {/* ── Supervisor override CTA (admins, still-blocked units only) ─ */}
         {canOverride && (
           <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-4">
@@ -509,6 +517,85 @@ function InspectionBreakdown({ itemResults }) {
           </div>
         )
       })}
+    </div>
+  )
+}
+
+// Post-assessment CTA — switches between "Create Quotation" and
+// "Proceed to Invoice" based on whether the plate already has an
+// APPROVED_FINAL quote. After a Re-Assessment that closes the loop,
+// the user shouldn't be prompted to create a NEW quote; they should
+// be sent back to the existing quote so they can issue the invoice.
+function PostAssessCta({ a }) {
+  const plate = a?.header?.plate || ''
+  const [state, setState] = useState({ loading: true, approved: null })
+  useEffect(() => {
+    if (!plate) { setState({ loading: false, approved: null }); return }
+    let cancelled = false
+    getApprovedQuotationForPlate(plate).then((quot) => {
+      if (!cancelled) setState({ loading: false, approved: quot })
+    }).catch(() => {
+      if (!cancelled) setState({ loading: false, approved: null })
+    })
+    return () => { cancelled = true }
+  }, [plate])
+
+  if (state.loading) {
+    return (
+      <div className="bg-white border-2 border-gray-200 rounded-2xl p-4 text-sm text-gray-500">
+        Checking for an existing approved quote…
+      </div>
+    )
+  }
+
+  // Existing approved quote → proceed to invoice path.
+  if (state.approved) {
+    return (
+      <div className="bg-white border-2 border-emerald-300 rounded-2xl p-4">
+        <div className="flex items-start gap-3">
+          <div className="text-2xl leading-none">🧾</div>
+          <div className="flex-1 min-w-0">
+            <div className="font-black text-gray-900 text-sm">Approved quote on file — proceed to invoice</div>
+            <div className="text-xs text-gray-600 mt-1">
+              <span className="font-mono font-bold">{state.approved.code}</span> is already approved for {plate}.
+              The quote detail page is where the branch invoice is issued.
+            </div>
+            <Link
+              to={`/service-receipts/${state.approved.code}`}
+              className="inline-block mt-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-full shadow"
+            >
+              Proceed to Invoice →
+            </Link>
+            <div className="mt-2 text-[11px] text-gray-500">
+              The reassessment gate now sees this RWA — the "Generate Branch Invoice" button on the quote should be unlocked.
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // No approved quote yet → first-time quote creation.
+  return (
+    <div className="bg-white border-2 border-brand/30 rounded-2xl p-4">
+      <div className="flex items-start gap-3">
+        <div className="text-2xl leading-none">📝</div>
+        <div className="flex-1 min-w-0">
+          <div className="font-black text-gray-900 text-sm">Ready to quote</div>
+          <div className="text-xs text-gray-600 mt-1">
+            Assessment is in. Build the quotation from these findings to start the approval chain.
+          </div>
+          <Link
+            to={`/quotations/create?plate=${encodeURIComponent(plate)}&fromAssessment=${encodeURIComponent(a.rwaNumber || '')}`}
+            className="inline-block mt-3 bg-brand hover:bg-brand-dark text-white text-xs font-bold px-4 py-2 rounded-full shadow"
+          >
+            Create Quotation →
+          </Link>
+          <div className="mt-2 text-[11px] text-gray-500">
+            Lines will be prefilled from this assessment's critical findings — review and set unit costs.
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

@@ -9,6 +9,7 @@ import { formatDateTime } from '../lib/dummyData'
 import { watchAppointments } from '../lib/appointments'
 import { watchVehicles } from '../lib/vehicles'
 import StatusPill, { PipelineCard } from '../components/ui/StatusPill'
+import FinanceSnapshot from '../components/FinanceSnapshot'
 import VehicleImage from '../components/ui/VehicleImage'
 import Icon from '../components/ui/Icon'
 import PageHero, { HeroStat } from '../components/ui/PageHero'
@@ -51,10 +52,10 @@ export default function Home() {
   const [source, setSource] = useState('loading')
 
   useEffect(() => {
-    const u1 = watchAppointments({ dummyFallback: true }, ({ rows, source }) => {
+    const u1 = watchAppointments({}, ({ rows, source }) => {
       setRaw(rows); setSource(source)
     })
-    const u2 = watchVehicles({ dummyFallback: true }, ({ vehicles }) => setVehicles(vehicles))
+    const u2 = watchVehicles({}, ({ vehicles }) => setVehicles(vehicles))
     return () => { u1?.(); u2?.() }
   }, [])
 
@@ -69,23 +70,36 @@ export default function Home() {
     }
   }), [raw, vehicles])
 
+  // CONFIRMED is what fleet bookings flip to after branch approval; it's
+  // functionally identical to BOOKED (scheduled, awaiting arrival), so we
+  // collapse both into the same kanban lane to avoid the post-approval
+  // gap the user reported.
+  const lane = (status) => (status === 'CONFIRMED' ? 'BOOKED' : status)
+
   const byStatus = useMemo(() => {
     const m = Object.fromEntries(STATUS_ORDER.map((s) => [s, []]))
     for (const a of appointments) {
-      if (!m[a.status]) m[a.status] = []
-      m[a.status].push(a)
+      const k = lane(a.status)
+      if (!m[k]) m[k] = []
+      m[k].push(a)
     }
     return m
   }, [appointments])
 
   const summary = useMemo(() => {
-    const carsInGarage = appointments.filter((a) => a.status !== 'COMPLETED' && a.status !== 'BOOKED' && a.status !== 'TENTATIVE').length
+    // "In garage" = the unit is physically here (ARRIVED through PENDING).
+    // Booked / confirmed / tentative haven't shown up yet; pending-approval
+    // hasn't even cleared the schedule.
+    const inGarageStatuses = new Set(['ARRIVED', 'DIAGNOSED', 'ONGOING', 'PENDING'])
+    const carsInGarage = appointments.filter((a) => inGarageStatuses.has(a.status)).length
     const backlogs = appointments.filter((a) => ['ARRIVED', 'ONGOING', 'PENDING'].includes(a.status)).length
     const pendingApproval = appointments.filter((a) => a.status === 'PENDING_BRANCH_APPROVAL').length
     return { carsInGarage, backlogs, pendingApproval }
   }, [appointments])
 
-  const filtered = filter === 'ALL' ? appointments : appointments.filter((a) => a.status === filter)
+  const filtered = filter === 'ALL'
+    ? appointments
+    : appointments.filter((a) => lane(a.status) === filter)
 
   const todayLabel = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
 
@@ -98,9 +112,9 @@ export default function Home() {
         right={<HeroStat value={summary.carsInGarage} label="IN GARAGE" tone="solid" />}
       />
 
-      {source === 'dummy' && (
-        <div className="mx-3 sm:mx-6 mt-3 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-          Showing demo data — Firestore appointments collection is empty or unreachable.
+      {source === 'error' && (
+        <div className="mx-3 sm:mx-6 mt-3 text-[11px] text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
+          Read blocked — check Firestore rules for the appointments collection.
         </div>
       )}
 
@@ -114,6 +128,8 @@ export default function Home() {
       </div>
 
       <div className="px-3 sm:px-6 pt-5 space-y-4">
+        <FinanceSnapshot profile={profile} />
+
         {/* Pipeline row — color-coded counts */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2">
           {STATUS_ORDER.map((s) => (
@@ -207,7 +223,14 @@ function CardView({ byStatus, filter }) {
 }
 
 function AppointmentCard({ appt }) {
-  const [menu, setMenu] = useState(false)
+  // Mechanic assignment is part of the assessment flow now (Round 16). If a
+  // mechanic isn't picked yet, route the user through AssignMechanic first
+  // so they can pick one, then on save it bounces them into /assess.
+  const hasMechanic = appt.mechanic && appt.mechanic !== 'Not yet assigned'
+  const assessHref = hasMechanic
+    ? `/appointments/${appt.id}/assess`
+    : `/appointments/${appt.id}/assign?then=assess`
+
   return (
     <div className="bg-white border rounded-2xl p-2.5 shadow-sm">
       <div className="h-16 flex items-center justify-center mb-1">
@@ -242,26 +265,14 @@ function AppointmentCard({ appt }) {
       <div className="mt-2 text-[10px] text-gray-600 bg-gray-50 rounded-lg px-2 py-1 leading-tight">
         {appt.note ? `"${appt.note}"` : '-'}
       </div>
-      <div className="relative mt-2">
-        <button onClick={() => setMenu((v) => !v)} className="w-full bg-gray-900 text-white text-[11px] font-bold rounded-lg px-2 py-1.5 flex items-center justify-center gap-1">
-          ACTIONS ▾
-        </button>
-        {menu && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-xl shadow-lg z-10 text-[11px] overflow-hidden">
-            <MenuItem to={`/vehicles/${appt.plateNo}`}>View Details</MenuItem>
-            <MenuItem to={`/appointments/${appt.id}/assess`}>Assess</MenuItem>
-            <MenuItem to={`/appointments/${appt.id}/assign`}>Assign Mechanic</MenuItem>
-            <MenuItem to={`/appointments/${appt.id}/update`}>Post Update</MenuItem>
-            <MenuItem to={`/service-receipts/create?plate=${appt.plateNo}`}>Create Receipt</MenuItem>
-          </div>
-        )}
-      </div>
+      <Link
+        to={assessHref}
+        className="block mt-2 w-full bg-gray-900 hover:bg-black text-white text-[11px] font-bold rounded-lg px-2 py-1.5 text-center"
+      >
+        ASSESS
+      </Link>
     </div>
   )
-}
-
-function MenuItem({ to, children }) {
-  return <Link to={to} className="block px-3 py-2 hover:bg-gray-100 text-gray-700">{children}</Link>
 }
 
 function ListView({ rows }) {

@@ -4,7 +4,7 @@
 // spam on mechanic changes).
 
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { watchAppointments, assignMechanic } from '../lib/appointments'
 import { MECHANICS } from '../lib/dummyData'
 import PageHero from '../components/ui/PageHero'
@@ -14,6 +14,14 @@ import StatusPill from '../components/ui/StatusPill'
 export default function AssignMechanic() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+  // Round 16 — when entered via the My Garage Assess flow, this param is set
+  // and we forward to the assessment form on save instead of bouncing back.
+  const thenTarget = params.get('then')
+  const goAfterSave = () => {
+    if (thenTarget === 'assess' && id) navigate(`/appointments/${id}/assess`)
+    else navigate(-1)
+  }
 
   const [rows, setRows] = useState([])
   const [search, setSearch] = useState('')
@@ -21,7 +29,7 @@ export default function AssignMechanic() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    const unsub = watchAppointments({ dummyFallback: true }, ({ rows }) => setRows(rows))
+    const unsub = watchAppointments({}, ({ rows }) => setRows(rows))
     return unsub
   }, [])
 
@@ -54,7 +62,7 @@ export default function AssignMechanic() {
     setSaving(name); setError(null)
     try {
       await assignMechanic(appt.id, name)
-      navigate(-1)
+      goAfterSave()
     } catch (err) {
       console.error('[assign] failed:', err)
       setError(err.message || String(err))
@@ -67,7 +75,7 @@ export default function AssignMechanic() {
     setSaving('__unassign'); setError(null)
     try {
       await assignMechanic(appt.id, 'Not yet assigned')
-      navigate(-1)
+      goAfterSave()
     } catch (err) {
       console.error('[assign] unassign failed:', err)
       setError(err.message || String(err))

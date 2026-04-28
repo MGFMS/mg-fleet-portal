@@ -109,6 +109,9 @@ function CustomerMenu({ profile }) {
       <SectionHeader>Fleet</SectionHeader>
       <div className="bg-white divide-y">
         <Row to="/portal/service-log" icon="doc" label="Service Log" />
+        <Row to="/portal/quotations" icon="doc" label="Service Quotations" />
+        <Row to="/portal/invoices" icon="doc" label="Service Receipts" />
+        <Row to="/portal/statement" icon="doc" label="Statement of Account" />
         {canScheduleService(role) && (
           <Row to="/portal/schedule-service" icon="calendar" label="Request for Service" />
         )}
@@ -120,6 +123,8 @@ function CustomerMenu({ profile }) {
           <div className="bg-white divide-y">
             <Row to="/admin/fleet-companies" icon="tool" label="Fleet Companies" />
             <Row to="/admin/users" icon="user" label="Users" />
+            <Row to="/admin/vehicle-catalog" icon="car" label="Vehicle Catalog" />
+            <Row to="/admin/cavite-catalog" icon="doc" label="Price Catalog" />
           </div>
         </>
       )}
@@ -142,6 +147,9 @@ function StaffMenu({ profile }) {
       <div className="bg-white divide-y">
         {canServiceQuotation(role) && <Row to="/quotations" icon="doc" label="Service Quotations" />}
         {canServiceQuotation(role) && <Row to="/quotations/unbilled" icon="doc" label="Services for Quotation" />}
+        <Row to="/branch-invoices" icon="doc" label="Branch Invoices" />
+        <Row to="/client-invoices" icon="doc" label="Client Invoices" />
+        <Row to="/credit-notes" icon="doc" label="Credit Notes" />
         {canReports(role) && <Row to="/reports" icon="backlog" label="Reports" />}
       </div>
 
@@ -159,6 +167,8 @@ function StaffMenu({ profile }) {
           <div className="bg-white divide-y">
             <Row to="/admin/fleet-companies" icon="tool" label="Fleet Companies" />
             <Row to="/admin/users" icon="user" label="Users" />
+            <Row to="/admin/vehicle-catalog" icon="car" label="Vehicle Catalog" />
+            <Row to="/admin/cavite-catalog" icon="doc" label="Price Catalog" />
           </div>
         </>
       )}

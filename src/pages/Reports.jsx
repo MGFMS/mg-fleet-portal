@@ -50,6 +50,13 @@ export default function Reports() {
         </div>
       )}
 
+      {/* Quick links to other reports / dashboards */}
+      <div className="px-3 sm:px-6 mt-3 flex flex-wrap gap-2">
+        <Link to="/reports/receivables" className="bg-white border rounded-full px-3 py-1.5 text-xs font-bold text-gray-700 hover:bg-gray-50">
+          💰 Receivables Aging →
+        </Link>
+      </div>
+
       <div className="px-3 sm:px-6 -mt-3 relative z-10">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
           <AlertTile label="Critical defects" value={stats.criticalDefects} tone="red" />

@@ -10,13 +10,14 @@
 //   - Supervisor override
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import VehicleMakeModelPicker from '../components/VehicleMakeModelPicker'
 import { useAuth } from '../context/AuthContext'
 import { fetchContextDoc } from '../lib/notifications'
 import { watchVehicles } from '../lib/vehicles'
 import {
-  ACTION_CFG, ALL_ITEMS, ASSESS_TYPES, CATEGORIES, DEFECT_CODES, PRE_DISPATCH_ITEMS,
-  RC, SC, calcHealthScore, getAction, getActiveItems, healthColor,
+  ACTION_CFG, ALL_ITEMS, ASSESS_TYPES, CATEGORIES, DEFECT_CODES, LABOR_TYPES,
+  PRE_DISPATCH_ITEMS, RC, SC, calcHealthScore, getAction, getActiveItems, healthColor,
 } from '../lib/mgfms-catalog'
 import {
   createAssessment, runEngine,
@@ -61,6 +62,15 @@ function clearDraft(appointmentId) {
 
 export default function AssessmentForm() {
   const { id: appointmentId } = useParams()
+  const [searchParams] = useSearchParams()
+  // Round 22 — when launched via the "Start Re-Assessment →" button on
+  // the invoice gate-fail card, the URL carries ?type=Re-Assessment so
+  // the form starts on the right type. Validate against ASSESS_TYPES so
+  // unknown values silently fall through to the default.
+  const initialType = (() => {
+    const fromUrl = searchParams.get('type')
+    return fromUrl && ASSESS_TYPES.includes(fromUrl) ? fromUrl : 'Initial'
+  })()
   const navigate = useNavigate()
   const { profile } = useAuth()
 
@@ -75,9 +85,14 @@ export default function AssessmentForm() {
   const [header, setHeader] = useState(() => initialDraft?.header || {
     plate: '', make: '', model: '', yearModel: '',
     client: '', branch: '', technician: '', odometer: '',
-    type: 'Initial', date: new Date().toISOString().slice(0, 10),
+    type: initialType, date: new Date().toISOString().slice(0, 10),
   })
   const [itemResults, setItemResults] = useState(() => initialDraft?.itemResults || {})
+  // Round 18 — labor selection. `labors` is a code→bool map for the
+  // checklist; on submit we serialize to an array on the assessment doc.
+  // `otherLabor` is a free-text rider bound to LBR_OTHER.
+  const [labors, setLabors] = useState(() => initialDraft?.labors || {})
+  const [otherLabor, setOtherLabor] = useState(() => initialDraft?.otherLabor || '')
   const [openCat, setOpenCat] = useState(CATEGORIES[0]?.code || null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
@@ -151,11 +166,11 @@ export default function AssessmentForm() {
     if (loading) return
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(() => {
-      saveDraft(appointmentId, { header, itemResults, prevAssessment, reassessMode })
+      saveDraft(appointmentId, { header, itemResults, prevAssessment, reassessMode, labors, otherLabor })
       setDraftSavedAt(Date.now())
     }, 600)
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
-  }, [appointmentId, header, itemResults, prevAssessment, reassessMode, loading])
+  }, [appointmentId, header, itemResults, prevAssessment, reassessMode, labors, otherLabor, loading])
 
   // When the type flips to Re-Assessment, fetch the latest unresolved
   // assessment for this plate. If there isn't one, we can't do a proper
@@ -265,10 +280,62 @@ export default function AssessmentForm() {
 
   const canSubmit = answered > 0 && header.plate && header.technician && !saving
 
+  // Round 24 — when Submit is clicked but the form's incomplete, find
+  // the first blocker, scroll to it, focus the offending input, and
+  // surface a targeted message. Same pattern as QuickFix.
+  const findFirstBlocker = () => {
+    if (!header.plate || !String(header.plate).trim()) {
+      return { fieldId: 'assess-plate', message: 'Plate number is required.' }
+    }
+    if (!header.technician || !String(header.technician).trim()) {
+      return { fieldId: 'assess-technician', message: 'Technician name is required.' }
+    }
+    if (answered === 0) {
+      return {
+        fieldId: null,
+        anchorId: 'assess-categories',
+        message: 'Rate at least one item below before submitting.',
+        openCat: activeCategories[0]?.code || null,
+      }
+    }
+    return null
+  }
+
+  const jumpToBlocker = (blocker) => {
+    if (!blocker) return
+    setError(blocker.message)
+    if (blocker.openCat) setOpenCat(blocker.openCat)
+    const anchor = blocker.fieldId || blocker.anchorId
+    if (!anchor) return
+    const el = document.getElementById(anchor)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    if (blocker.fieldId) {
+      setTimeout(() => {
+        const input = document.getElementById(blocker.fieldId)
+        if (input) input.focus()
+      }, 250)
+    }
+  }
+
+  // Serialize the labor picker state for persistence. Order follows
+  // LABOR_TYPES so the saved doc reads top-to-bottom in catalog order.
+  const buildLaborsPayload = () => {
+    const picked = LABOR_TYPES.filter((lt) => labors[lt.code]).map((lt) => ({
+      code: lt.code, label: lt.label,
+    }))
+    const other = labors.LBR_OTHER && otherLabor.trim() ? otherLabor.trim() : null
+    return { labors: picked, otherLabor: other }
+  }
+
   const onSubmit = async () => {
-    if (!canSubmit) return
+    if (saving) return
+    if (!canSubmit) {
+      jumpToBlocker(findFirstBlocker())
+      return
+    }
     setSaving(true); setError(null)
     try {
+      const { labors: laborsPayload, otherLabor: otherLaborPayload } = buildLaborsPayload()
       const { rwaNumber } = await createAssessment({
         appointmentId,
         header: {
@@ -276,6 +343,8 @@ export default function AssessmentForm() {
           odometer: header.odometer ? Number(header.odometer) : null,
         },
         itemResults,
+        labors: laborsPayload,
+        otherLabor: otherLaborPayload,
       })
       // Submit succeeded — draft is no longer needed.
       clearDraft(appointmentId)
@@ -418,20 +487,58 @@ export default function AssessmentForm() {
       {/* ── Vehicle & header ─────────────────────────────────────── */}
       <div className="m-3 sm:m-4 bg-white border rounded-xl p-3 sm:p-4">
         <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-3">Vehicle & Header</div>
+
+        {/* Assigned mechanic — moved into the assessment flow per Round 16.
+            The card on My Garage no longer has its own assign action; this
+            is the only entry to AssignMechanic now. */}
+        {appointmentId && (
+          <div className="mb-3 bg-gray-50 border rounded-lg px-3 py-2.5 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Assigned Mechanic</div>
+              <div className={`text-sm font-bold truncate ${appointment?.mechanic && appointment.mechanic !== 'Not yet assigned' ? 'text-gray-900' : 'italic text-gray-400 font-normal'}`}>
+                {appointment?.mechanic && appointment.mechanic !== 'Not yet assigned'
+                  ? appointment.mechanic
+                  : 'Not yet assigned'}
+              </div>
+            </div>
+            <Link
+              to={`/appointments/${appointmentId}/assign?then=assess`}
+              className="shrink-0 text-[11px] font-bold text-brand hover:text-brand-dark bg-white border border-brand rounded-lg px-3 py-1.5"
+            >
+              {appointment?.mechanic && appointment.mechanic !== 'Not yet assigned' ? 'Change' : 'Assign'}
+            </Link>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
           <Field label="Plate">
-            <input value={header.plate} onChange={(e) => setHeader((h) => ({ ...h, plate: e.target.value.toUpperCase() }))} className="input w-full uppercase" />
+            <input id="assess-plate" value={header.plate} onChange={(e) => setHeader((h) => ({ ...h, plate: e.target.value.toUpperCase() }))} className="input w-full uppercase scroll-mt-4" />
           </Field>
           <Field label="Date">
             <input type="date" value={header.date} onChange={(e) => setHeader((h) => ({ ...h, date: e.target.value }))} className="input w-full" />
           </Field>
-          <Field label="Make"><input value={header.make} onChange={(e) => setHeader((h) => ({ ...h, make: e.target.value }))} className="input w-full" /></Field>
-          <Field label="Model"><input value={header.model} onChange={(e) => setHeader((h) => ({ ...h, model: e.target.value }))} className="input w-full" /></Field>
+          <div className="sm:col-span-2">
+            <VehicleMakeModelPicker
+              value={{
+                makeName: header.make || '',
+                makeId:   header.makeId ?? null,
+                modelName: header.model || '',
+                modelId:   header.modelId ?? null,
+              }}
+              onChange={(v) => setHeader((h) => ({
+                ...h,
+                make: v.makeName,
+                makeId: v.makeId,
+                model: v.modelName,
+                modelId: v.modelId,
+              }))}
+            />
+          </div>
           <Field label="Year"><input value={header.yearModel} onChange={(e) => setHeader((h) => ({ ...h, yearModel: e.target.value }))} className="input w-full" /></Field>
           <Field label="Odometer (km)"><input type="number" value={header.odometer} onChange={(e) => setHeader((h) => ({ ...h, odometer: e.target.value }))} className="input w-full" /></Field>
           <Field label="Client / Fleet"><input value={header.client} onChange={(e) => setHeader((h) => ({ ...h, client: e.target.value }))} className="input w-full" /></Field>
           <Field label="Branch"><input value={header.branch} onChange={(e) => setHeader((h) => ({ ...h, branch: e.target.value }))} className="input w-full" /></Field>
-          <Field label="Technician"><input value={header.technician} onChange={(e) => setHeader((h) => ({ ...h, technician: e.target.value }))} className="input w-full" /></Field>
+          <Field label="Technician"><input id="assess-technician" value={header.technician} onChange={(e) => setHeader((h) => ({ ...h, technician: e.target.value }))} className="input w-full scroll-mt-4" /></Field>
           <Field label="Type">
             <select value={header.type} onChange={(e) => { setHeader((h) => ({ ...h, type: e.target.value })); prefilledKeyRef.current = '' }} className="input w-full">
               {ASSESS_TYPES.map((t) => <option key={t}>{t}</option>)}
@@ -452,6 +559,7 @@ export default function AssessmentForm() {
       />
 
       {/* ── Inspection categories ───────────────────────────────── */}
+      <div id="assess-categories" className="scroll-mt-4" />
       {activeCategories.length === 0 ? (
         <div className="mx-3 sm:mx-4 bg-white border border-dashed rounded-xl p-6 text-center text-gray-400 text-sm">
           {header.type === 'Re-Assessment' && !prevAssessment
@@ -474,15 +582,23 @@ export default function AssessmentForm() {
         </div>
       )}
 
+      {/* ── Labor / service required (Round 18) ─────────────────── */}
+      <LaborPicker
+        labors={labors}
+        setLabors={setLabors}
+        otherLabor={otherLabor}
+        setOtherLabor={setOtherLabor}
+      />
+
       {/* ── Sticky submit bar ───────────────────────────────────── */}
       <div
         className="fixed bottom-0 left-0 right-0 bg-white border-t px-3 sm:px-4 py-3 flex items-center gap-2 sm:gap-3 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]"
         style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0))' }}
       >
-        {error && <div className="text-[11px] text-red-700 flex-1 truncate">Save failed: {error}</div>}
+        {error && <div className="text-[11px] text-red-700 flex-1 truncate" title={error}>{error}</div>}
         <div className={`text-[11px] sm:text-xs flex-1 min-w-0 ${error ? 'hidden' : ''}`}>
           {answered === 0 ? (
-            <span className="text-gray-500">Rate at least one item to submit.</span>
+            <span className="text-gray-500">Tap Submit — we'll jump you to anything missing.</span>
           ) : (
             <span className="text-gray-700">
               <span className="font-bold">{answered}/{totalItems}</span>
@@ -494,8 +610,11 @@ export default function AssessmentForm() {
         </div>
         <button
           onClick={onSubmit}
-          disabled={!canSubmit}
-          className="bg-brand hover:bg-brand-dark disabled:opacity-50 text-white font-bold text-sm px-5 py-2.5 rounded-xl shadow active:scale-95 transition-transform shrink-0"
+          disabled={saving}
+          className={`text-white font-bold text-sm px-5 py-2.5 rounded-xl shadow active:scale-95 transition-transform shrink-0 ${
+            canSubmit ? 'bg-brand hover:bg-brand-dark' : 'bg-amber-600 hover:bg-amber-700'
+          } ${saving ? 'opacity-50' : ''}`}
+          title={canSubmit ? '' : 'Plate, technician, and at least one rated item are required — click to jump to whatever is missing.'}
         >
           {saving ? 'Submitting…' : 'Submit'}
         </button>
@@ -927,6 +1046,62 @@ function ItemRow({ item, result, setResult }) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// Labor / service-required checklist. The selection is what feeds the
+// smart-quote prefill: one Labor line per ticked entry. Bundles (e.g. a
+// PMS row covers oil/oil-filter/air-filter together) are the whole point —
+// the assessor decides the level of granularity here.
+function LaborPicker({ labors, setLabors, otherLabor, setOtherLabor }) {
+  const toggle = (code) => setLabors((prev) => ({ ...prev, [code]: !prev[code] }))
+  const pickedCount = Object.values(labors || {}).filter(Boolean).length
+
+  return (
+    <div className="m-3 sm:m-4 bg-white border rounded-xl overflow-hidden">
+      <div className="px-3 sm:px-4 py-3 border-b bg-gray-50 flex items-center justify-between">
+        <div>
+          <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Labor / Service Required</div>
+          <div className="text-[11px] text-gray-500 mt-0.5">
+            Pick the labor types this job needs. Drives the quotation line items.
+          </div>
+        </div>
+        <span className="text-[11px] font-bold text-gray-500 bg-white border rounded-full px-2 py-0.5">
+          {pickedCount} picked
+        </span>
+      </div>
+      <div className="divide-y">
+        {LABOR_TYPES.map((lt) => {
+          const checked = !!labors?.[lt.code]
+          return (
+            <div key={lt.code}>
+              <button
+                type="button"
+                onClick={() => toggle(lt.code)}
+                className={`w-full flex items-center gap-3 px-3 sm:px-4 py-3 text-left transition-colors ${checked ? 'bg-gray-50' : 'hover:bg-gray-50/60'}`}
+              >
+                <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${checked ? 'bg-gray-800 border-gray-800' : 'border-gray-300'}`}>
+                  {checked && <span className="text-white text-[10px] font-black">✓</span>}
+                </div>
+                <span className="text-base shrink-0">{lt.icon}</span>
+                <span className={`text-sm ${checked ? 'font-bold text-gray-800' : 'text-gray-600'}`}>{lt.label}</span>
+              </button>
+              {lt.code === 'LBR_OTHER' && checked && (
+                <div className="px-3 sm:px-4 pb-3 pt-1 bg-gray-50">
+                  <textarea
+                    rows={2}
+                    placeholder="Describe the labor (e.g. fabricate bracket, hand-clean rust)…"
+                    value={otherLabor}
+                    onChange={(e) => setOtherLabor(e.target.value)}
+                    className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-gray-500 resize-none bg-white"
+                  />
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

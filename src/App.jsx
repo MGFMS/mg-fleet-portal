@@ -30,10 +30,20 @@ import Quotations from './pages/Quotations'
 import ServiceReceipts from './pages/ServiceReceipts'
 import ServiceReceiptCreate from './pages/ServiceReceiptCreate'
 import ServiceReceiptDetails from './pages/ServiceReceiptDetails'
+import BranchInvoices from './pages/BranchInvoices'
+import BranchInvoiceDetails from './pages/BranchInvoiceDetails'
+import ClientInvoices from './pages/ClientInvoices'
+import ClientInvoiceDetails from './pages/ClientInvoiceDetails'
+import CreditNotes from './pages/CreditNotes'
+import CreditNoteDetails from './pages/CreditNoteDetails'
+import ReceivablesReport from './pages/ReceivablesReport'
+import StatementOfAccount from './pages/StatementOfAccount'
 
 import ScheduleService from './pages/ScheduleService'
 import FleetCompanies from './pages/admin/FleetCompanies'
 import Users from './pages/admin/Users'
+import VehicleCatalogIngest from './pages/admin/VehicleCatalogIngest'
+import CaviteCatalogIngest from './pages/admin/CaviteCatalogIngest'
 import AuthComplete from './pages/AuthComplete'
 import More from './pages/More'
 
@@ -81,8 +91,22 @@ export default function App() {
           <Route path="/service-receipts/create" element={<ProtectedRoute allowedCategories={INTERNAL} requiredPermission="serviceRequest"><ServiceReceiptCreate /></ProtectedRoute>} />
           <Route path="/service-receipts/:code"  element={<ProtectedRoute allowedCategories={BOTH}><ServiceReceiptDetails /></ProtectedRoute>} />
 
+          {/* Branch Invoices (branch → MG Fleet, Round 12) */}
+          <Route path="/branch-invoices"       element={<ProtectedRoute allowedCategories={INTERNAL}><BranchInvoices /></ProtectedRoute>} />
+          <Route path="/branch-invoices/:code" element={<ProtectedRoute allowedCategories={INTERNAL}><BranchInvoiceDetails /></ProtectedRoute>} />
+
+          {/* Client Invoices (MG Fleet → fleet client, Round 13) */}
+          <Route path="/client-invoices"       element={<ProtectedRoute allowedCategories={INTERNAL}><ClientInvoices /></ProtectedRoute>} />
+          <Route path="/client-invoices/:code" element={<ProtectedRoute allowedCategories={BOTH}><ClientInvoiceDetails /></ProtectedRoute>} />
+
+          {/* Credit Notes (escape hatch for already-paid/billed invoices, Round 15) */}
+          <Route path="/credit-notes"          element={<ProtectedRoute allowedCategories={INTERNAL}><CreditNotes /></ProtectedRoute>} />
+          <Route path="/credit-notes/:code"    element={<ProtectedRoute allowedCategories={BOTH}><CreditNoteDetails /></ProtectedRoute>} />
+
           {/* Reports (requires reports permission) */}
-          <Route path="/reports"               element={<ProtectedRoute allowedCategories={INTERNAL} requiredPermission="reports"><Reports /></ProtectedRoute>} />
+          <Route path="/reports"                  element={<ProtectedRoute allowedCategories={INTERNAL} requiredPermission="reports"><Reports /></ProtectedRoute>} />
+          <Route path="/reports/receivables"      element={<ProtectedRoute allowedCategories={INTERNAL} requiredPermission="reports"><ReceivablesReport /></ProtectedRoute>} />
+          <Route path="/reports/soa/:company"     element={<ProtectedRoute allowedCategories={INTERNAL} requiredPermission="reports"><StatementOfAccount /></ProtectedRoute>} />
 
           {/* Data management */}
           <Route path="/customers"             element={<ProtectedRoute allowedCategories={INTERNAL}><Customers /></ProtectedRoute>} />
@@ -99,11 +123,15 @@ export default function App() {
           <Route path="/portal/my-fleet"       element={<ProtectedRoute allowedCategories={CUSTOMER} requiredPermission="myFleet"><MyFleet /></ProtectedRoute>} />
           <Route path="/portal/service-log"    element={<ProtectedRoute allowedCategories={CUSTOMER}><ServiceLog /></ProtectedRoute>} />
           <Route path="/portal/quotations"     element={<ProtectedRoute allowedCategories={CUSTOMER} requiredPermission="serviceQuotation"><Quotations customerView /></ProtectedRoute>} />
+          <Route path="/portal/invoices"       element={<ProtectedRoute allowedCategories={CUSTOMER}><ClientInvoices customerView /></ProtectedRoute>} />
+          <Route path="/portal/statement"      element={<ProtectedRoute allowedCategories={CUSTOMER}><StatementOfAccount customerView /></ProtectedRoute>} />
           <Route path="/portal/schedule-service" element={<ProtectedRoute allowedCategories={CUSTOMER} requiredPermission="scheduleService"><ScheduleService /></ProtectedRoute>} />
 
           {/* Admin (gated by is_admin flag, not by role category) */}
-          <Route path="/admin/fleet-companies" element={<ProtectedRoute requireAdmin><FleetCompanies /></ProtectedRoute>} />
-          <Route path="/admin/users"           element={<ProtectedRoute requireAdmin><Users /></ProtectedRoute>} />
+          <Route path="/admin/fleet-companies"  element={<ProtectedRoute requireAdmin><FleetCompanies /></ProtectedRoute>} />
+          <Route path="/admin/users"            element={<ProtectedRoute requireAdmin><Users /></ProtectedRoute>} />
+          <Route path="/admin/vehicle-catalog"  element={<ProtectedRoute requireAdmin><VehicleCatalogIngest /></ProtectedRoute>} />
+          <Route path="/admin/cavite-catalog"   element={<ProtectedRoute requireAdmin><CaviteCatalogIngest /></ProtectedRoute>} />
 
           {/* Mobile More screen — overflow menu for the BottomNav */}
           <Route path="/more"                  element={<ProtectedRoute allowedCategories={BOTH}><More /></ProtectedRoute>} />

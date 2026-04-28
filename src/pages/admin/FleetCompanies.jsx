@@ -9,7 +9,18 @@ import { MGFMS_CLIENTS } from '../../lib/dummyData'
 import Icon from '../../components/ui/Icon'
 import PageHero, { HeroStat } from '../../components/ui/PageHero'
 
-const EMPTY = { name: '', code: '', contactEmail: '', contactPhone: '', isActive: true }
+const EMPTY = { name: '', code: '', contactEmail: '', contactPhone: '', paymentTerms: 'NET_30', isActive: true }
+
+const PAYMENT_TERM_OPTIONS = [
+  { value: 'CASH',   label: 'Cash on receipt' },
+  { value: 'NET_30', label: 'Net 30 days' },
+  { value: 'NET_60', label: 'Net 60 days' },
+  { value: 'NET_90', label: 'Net 90 days' },
+]
+
+function termsLabel(value) {
+  return PAYMENT_TERM_OPTIONS.find((o) => o.value === value)?.label || 'Net 30 days'
+}
 
 export default function FleetCompanies() {
   const [rows, setRows] = useState([])
@@ -34,6 +45,7 @@ export default function FleetCompanies() {
           code: c.code,
           contactEmail: '',
           contactPhone: '',
+          paymentTerms: 'NET_30',
           isActive: true,
         })
       }
@@ -71,6 +83,7 @@ export default function FleetCompanies() {
       code: row.code || '',
       contactEmail: row.contactEmail || '',
       contactPhone: row.contactPhone || '',
+      paymentTerms: row.paymentTerms || 'NET_30',
       isActive: row.isActive !== false,
     })
     setEditingId(row.id)
@@ -190,6 +203,17 @@ export default function FleetCompanies() {
                   className="input"
                 />
               </Field>
+              <Field label="Payment terms" hint="Drives the due date on client invoices. Snapshot per-invoice — changing this won't shift already-issued bills.">
+                <select
+                  value={form.paymentTerms}
+                  onChange={(e) => setForm({ ...form, paymentTerms: e.target.value })}
+                  className="input"
+                >
+                  {PAYMENT_TERM_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </Field>
             </div>
             <label className="inline-flex items-center gap-2 text-sm text-gray-700">
               <input
@@ -255,6 +279,7 @@ export default function FleetCompanies() {
                 <th className="px-4 py-3 text-left font-medium">Name</th>
                 <th className="px-4 py-3 text-left font-medium">Code</th>
                 <th className="px-4 py-3 text-left font-medium">Contact</th>
+                <th className="px-4 py-3 text-left font-medium">Terms</th>
                 <th className="px-4 py-3 text-left font-medium">Status</th>
                 <th className="px-4 py-3 text-right font-medium">Actions</th>
               </tr>
@@ -279,6 +304,7 @@ export default function FleetCompanies() {
                       <div className="text-xs text-gray-400">{row.contactPhone}</div>
                     )}
                   </td>
+                  <td className="px-4 py-3 text-xs text-gray-700 font-mono">{termsLabel(row.paymentTerms)}</td>
                   <td className="px-4 py-3">
                     {row.isActive === false ? (
                       <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-500">
@@ -319,12 +345,13 @@ function CompanyCard({ row, onEdit, onToggleActive }) {
           {isActive ? 'Active' : 'Inactive'}
         </span>
       </div>
-      {(row.contactEmail || row.contactPhone) && (
-        <div className="text-xs text-gray-600 space-y-0.5 pb-3 border-b mb-3">
-          {row.contactEmail && <div className="break-all">{row.contactEmail}</div>}
-          {row.contactPhone && <div className="font-mono">{row.contactPhone}</div>}
+      <div className="text-xs text-gray-600 space-y-0.5 pb-3 border-b mb-3">
+        {row.contactEmail && <div className="break-all">{row.contactEmail}</div>}
+        {row.contactPhone && <div className="font-mono">{row.contactPhone}</div>}
+        <div className="text-[11px] text-gray-500">
+          Terms: <span className="font-bold text-gray-700">{termsLabel(row.paymentTerms)}</span>
         </div>
-      )}
+      </div>
       <div className="grid grid-cols-2 gap-2">
         <button
           onClick={onEdit}
@@ -356,7 +383,7 @@ function Field({ label, hint, children }) {
 function EmptyRow({ children, className = 'text-gray-400' }) {
   return (
     <tr>
-      <td colSpan={5} className={`px-4 py-8 text-center ${className}`}>
+      <td colSpan={6} className={`px-4 py-8 text-center ${className}`}>
         {children}
       </td>
     </tr>

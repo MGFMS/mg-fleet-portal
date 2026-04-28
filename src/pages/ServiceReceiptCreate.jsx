@@ -5,24 +5,23 @@
 // sticky footer above the submit bar. Desktop keeps the table.
 
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { collection, getDocs, limit, query, where } from 'firebase/firestore'
+import { db } from '../lib/firebase'
 import { useAuth } from '../context/AuthContext'
 import { MECHANICS, formatMoney } from '../lib/dummyData'
 import { watchVehicles } from '../lib/vehicles'
 import { createReceipt } from '../lib/serviceReceipts'
+import {
+  enrichItemsWithCatalogPrices,
+  extractAssessmentNotes, extractHeaderPrefill,
+  suggestQuoteItemsFromAssessment, summarizeAssessmentForQuote,
+} from '../lib/assessmentToQuote'
 import Icon from '../components/ui/Icon'
 import PageHero from '../components/ui/PageHero'
-
-const PARTS_CATALOG = [
-  { code: 'P001', name: 'ENGINE FILTER',        compat: 'Toyota Vios, Honda City',   supplier: 'AutoPlus',         unitCost: 500,  srp: 700,  stock: 15, reserved: 2 },
-  { code: 'P002', name: 'OIL FILTER',           compat: 'Toyota Innova, Honda Civic',supplier: 'Autoplus Trading', unitCost: 200,  srp: 400,  stock: 20, reserved: 3 },
-  { code: 'P003', name: 'US LUBE GASOLINE',     compat: 'All',                        supplier: 'US Lube Inc.',     unitCost: 250,  srp: 350,  stock: 40, reserved: 0 },
-  { code: 'P004', name: 'CABIN FILTER',         compat: 'Toyota Vios, Innova',        supplier: 'Autoplus Trading', unitCost: 350,  srp: 550,  stock: 8,  reserved: 1 },
-  { code: 'P005', name: 'ENGINE SUPPORT FOR VIOS', compat: 'Toyota Vios 2003',       supplier: 'Autoplus Trading', unitCost: 1200, srp: 1800, stock: 2,  reserved: 0 },
-  { code: 'P006', name: 'DRY RAG',              compat: 'All',                        supplier: 'General Supply',   unitCost: 10,   srp: 15,   stock: 500, reserved: 0 },
-  { code: 'L001', name: 'PREVENTIVE MAINTENANCE SERVICE', compat: '', supplier: '', unitCost: 2500, srp: 2500, stock: null, reserved: null },
-  { code: 'L002', name: 'REPLACE ENGINE SUPPORT',         compat: '', supplier: '', unitCost: 800,  srp: 800,  stock: null, reserved: null },
-]
+import LineItemCard from '../components/LineItemCard'
+import LineItemRow, { LineItemHeader } from '../components/LineItemRow'
+import { resolveVehicleIds } from '../lib/caviteCatalogSearch'
 
 // `kind` is "receipt" (default) or "quotation" — chosen by the route the user
 // arrived from. A quotation enters the Round 10 approval chain at DRAFT; a
@@ -32,11 +31,21 @@ export default function ServiceReceiptCreate({ kind = 'receipt' }) {
   const navigate = useNavigate()
   const { profile } = useAuth()
   const initialPlate = (search.get('plate') || '').toUpperCase()
+  const fromAssessment = search.get('fromAssessment') || ''
   const isQuotation = kind === 'quotation'
+
+  // Smart prefill from a completed assessment (Round 17). Loaded once on
+  // mount when the URL carries ?fromAssessment=RWA-####. We replace the
+  // default seed items with the suggestions; the user can still edit any
+  // line and add/remove rows.
+  const [prefillBanner, setPrefillBanner] = useState(null)
+  // Track whether the assessment prefill already ran so the vehicle-
+  // registry effect (below) doesn't clobber the assessor's odometer.
+  const [assessmentPrefilled, setAssessmentPrefilled] = useState(false)
 
   const [vehicles, setVehicles] = useState([])
   useEffect(() => {
-    const unsub = watchVehicles({ dummyFallback: true }, ({ vehicles }) => setVehicles(vehicles))
+    const unsub = watchVehicles({}, ({ vehicles }) => setVehicles(vehicles))
     return unsub
   }, [])
 
@@ -46,11 +55,37 @@ export default function ServiceReceiptCreate({ kind = 'receipt' }) {
     [plate, vehicles],
   )
 
+  // Round 35/36 — vehicle catalog IDs for the autocomplete. Prefer
+  // the caviteIds the assessment captured via the dropdown picker
+  // (Round 36); only fall back to free-text name resolution for
+  // legacy assessments that don't carry IDs.
+  const [vehicleIds, setVehicleIds] = useState({ makeId: null, modelId: null })
+  useEffect(() => {
+    if (Number.isFinite(vehicle?.caviteMakeId) && Number.isFinite(vehicle?.caviteModelId)) {
+      setVehicleIds({ makeId: vehicle.caviteMakeId, modelId: vehicle.caviteModelId })
+      return
+    }
+    if (!vehicle?.brand && !vehicle?.brandModel) return
+    let cancelled = false
+    resolveVehicleIds(vehicle.brand, vehicle.model).then((ids) => {
+      if (!cancelled) setVehicleIds(ids)
+    })
+    return () => { cancelled = true }
+  }, [vehicle?.caviteMakeId, vehicle?.caviteModelId, vehicle?.brand, vehicle?.model])
+
   const [odo, setOdo] = useState(vehicle.latestOdo || 0)
-  const [customerName, setCustomerName] = useState(vehicle.assignedTo || 'CUSTOMER 100')
+  // Round 25a — customer name is no longer auto-populated from the
+  // vehicle registry's `assignedTo` (that field used to mistakenly carry
+  // the assessor's name; see vehicles.js). Defaults blank now; the user
+  // types the actual driver / contact for fleet jobs, or leaves blank
+  // and lets the company name carry the bill-to.
+  const [customerName, setCustomerName] = useState('')
   const [mobile, setMobile] = useState('')
   const [notes, setNotes] = useState('')
-  const [mechanic, setMechanic] = useState('Amelia Castillo')
+  // Round 25a — was hardcoded 'Amelia Castillo' (a name from dummy
+  // mechanics seed data). Now defaults blank; the prefill effect below
+  // sets it from the appointment's assigned mechanic when available.
+  const [mechanic, setMechanic] = useState('')
   const [items, setItems] = useState([
     { type: 'Labor', qty: 1, description: 'PREVENTIVE MAINTENANCE SERVICE', unitCost: 2500 },
     { type: 'Parts', qty: 1, description: '', unitCost: 0 },
@@ -58,13 +93,97 @@ export default function ServiceReceiptCreate({ kind = 'receipt' }) {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
 
-  // Sync to selected vehicle when list arrives / plate changes
+  // Sync to selected vehicle when list arrives / plate changes. Skipped
+  // when the assessment prefill already wrote the odometer/customer —
+  // that path has fresher data and we don't want to clobber it.
+  // Round 25a — customer no longer pulled from vehicle.assignedTo
+  // (that field used to leak the assessor's name).
   useEffect(() => {
     if (!vehicle) return
+    if (assessmentPrefilled) return
     setOdo(vehicle.latestOdo || 0)
-    setCustomerName(vehicle.assignedTo || customerName)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vehicle.plateNo])
+  }, [vehicle.plateNo, assessmentPrefilled])
+
+  // Load the source assessment (if any) and seed line items from it. Runs
+  // exactly once per fromAssessment param value. If the assessment is
+  // missing or has no failed items, leave the default seed alone and
+  // surface a soft warning instead of a success banner.
+  useEffect(() => {
+    if (!fromAssessment || !db) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const snap = await getDocs(query(
+          collection(db, 'assessments'),
+          where('rwaNumber', '==', fromAssessment),
+          limit(1),
+        ))
+        if (cancelled) return
+        if (snap.empty) {
+          setPrefillBanner({ tone: 'warn', text: `Assessment ${fromAssessment} not found — starting with a blank quote.` })
+          return
+        }
+        const a = { _docId: snap.docs[0].id, ...snap.docs[0].data() }
+        const suggestions = suggestQuoteItemsFromAssessment(a)
+        const summary = summarizeAssessmentForQuote(a)
+
+        // Round 21 — header + notes prefill always run, even when there
+        // are zero suggested line items. The assessor's odometer reading
+        // and any per-item notes are still useful on a "blank" quote.
+        const headerPrefill = extractHeaderPrefill(a)
+        if (headerPrefill.odometer != null) setOdo(headerPrefill.odometer)
+        if (headerPrefill.mechanic) setMechanic(headerPrefill.mechanic)
+        // Notes: prepend the assessment notes; preserve any user input.
+        const assessmentNotes = extractAssessmentNotes(a)
+        if (assessmentNotes) {
+          setNotes((prev) => prev ? `${assessmentNotes}\n\n${prev}` : assessmentNotes)
+        }
+        // Lock out the vehicle-registry effect from overwriting the
+        // odometer/customer — the assessment is now the source of truth
+        // for this quote.
+        setAssessmentPrefilled(true)
+
+        if (suggestions.length === 0) {
+          setPrefillBanner({ tone: 'info', text: `Assessment ${summary.rwa || fromAssessment} had no critical or monitor findings — nothing to prefill on line items. Header fields and notes were carried over.` })
+          return
+        }
+        // Round 37 — auto-price the suggestions against the live Cavite
+        // catalog. Uses the assessment header's caviteIds (Round 36)
+        // so the price lookup is exact-FK, not name-resolved.
+        const headerMakeId = Number(a?.header?.makeId)
+        const headerModelId = Number(a?.header?.modelId)
+        const priced = await enrichItemsWithCatalogPrices(suggestions, {
+          makeId: Number.isFinite(headerMakeId) ? headerMakeId : null,
+          modelId: Number.isFinite(headerModelId) ? headerModelId : null,
+        })
+        if (cancelled) return
+        const pricedCount = priced.filter((i) => Number(i.unitCost) > 0).length
+        setItems(priced)
+        const parts = []
+        if (summary.laborCount > 0) {
+          parts.push(`${summary.laborCount} labor type${summary.laborCount === 1 ? '' : 's'} declared`)
+        }
+        parts.push(`${summary.criticalCount} critical finding${summary.criticalCount === 1 ? '' : 's'}`)
+        if (summary.monitorCount > 0) parts.push(`${summary.monitorCount} monitor item${summary.monitorCount === 1 ? '' : 's'}`)
+        if (summary.holdCount > 0) parts.push(`${summary.holdCount} hold-unit`)
+        const sourceNote = summary.laborSource === 'derived'
+          ? ' Labor lines were derived per item (no labors declared on this assessment).'
+          : ''
+        const priceNote = pricedCount > 0
+          ? ` ${pricedCount} of ${priced.length} priced from the Cavite catalog — review the rest.`
+          : ' No catalog price matches — fill unit costs manually.'
+        setPrefillBanner({
+          tone: 'success',
+          text: `Prefilled ${suggestions.length} line${suggestions.length === 1 ? '' : 's'} from ${summary.rwa || fromAssessment} (${parts.join(', ')}).${sourceNote}${priceNote}`,
+        })
+      } catch (err) {
+        console.error('[quote prefill] failed:', err)
+        if (!cancelled) setPrefillBanner({ tone: 'warn', text: 'Could not load assessment for prefill — starting with a blank quote.' })
+      }
+    })()
+    return () => { cancelled = true }
+  }, [fromAssessment])
 
   const laborTotal = items.filter((i) => i.type === 'Labor').reduce((s, i) => s + i.qty * i.unitCost, 0)
   const matTotal   = items.filter((i) => i.type !== 'Labor').reduce((s, i) => s + i.qty * i.unitCost, 0)
@@ -91,6 +210,7 @@ export default function ServiceReceiptCreate({ kind = 'receipt' }) {
         scheduleType: 'SCHEDULED',
         items,
         notes,
+        sourceAssessmentRwa: fromAssessment || null,
         byProfile: profile,
       })
       navigate(`/service-receipts/${code}`)
@@ -114,13 +234,52 @@ export default function ServiceReceiptCreate({ kind = 'receipt' }) {
       <div className="px-3 sm:px-6 pt-4 space-y-4">
         {error && <div className="bg-red-50 border border-red-200 text-red-800 rounded-xl px-3 py-2 text-sm">Save failed: {error}</div>}
 
+        {/* Round 29 — banner shown when the user lands on quote create
+            without ?fromAssessment=. The proper flow is booking →
+            assess → "Create Quotation" CTA. This direct path skips
+            assessment, so the prefill won't run and the audit trail
+            won't link a quote to a roadworthy check. Kept as a backdoor
+            for legacy / edge cases. */}
+        {isQuotation && !fromAssessment && (
+          <div className="rounded-xl px-3 py-2.5 text-sm border bg-amber-50 border-amber-200 text-amber-900">
+            <div className="flex items-start gap-2">
+              <span className="text-lg leading-none">⚠️</span>
+              <div className="flex-1 text-xs sm:text-sm">
+                <div className="font-bold mb-0.5">Creating a quotation without an assessment</div>
+                <div>
+                  The standard process is <strong>Booking → Assess → Create Quotation</strong>. Starting here skips the assessment + smart prefill,
+                  and the quote won't link to a roadworthy check.
+                  Use this only for legacy / out-of-system jobs. Otherwise{' '}
+                  <Link to="/appointments" className="underline font-bold">go back to Service Bookings</Link>{' '}
+                  and start from there.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {prefillBanner && (
+          <div className={`rounded-xl px-3 py-2.5 text-sm border ${
+            prefillBanner.tone === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+            : prefillBanner.tone === 'warn' ? 'bg-amber-50 border-amber-200 text-amber-900'
+            : 'bg-sky-50 border-sky-200 text-sky-900'
+          }`}>
+            <div className="flex items-start gap-2">
+              <span className="text-lg leading-none">
+                {prefillBanner.tone === 'success' ? '✓' : prefillBanner.tone === 'warn' ? '⚠️' : 'ℹ️'}
+              </span>
+              <div className="flex-1 text-xs sm:text-sm">{prefillBanner.text}</div>
+            </div>
+          </div>
+        )}
+
         <Section title="Customer & Vehicle">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
             <Field label="Plate No. *">
               <input className="input uppercase font-mono" value={plate} onChange={(e) => setPlate(e.target.value.toUpperCase())} required />
             </Field>
-            <Field label="Name *">
-              <input className="input" value={customerName} onChange={(e) => setCustomerName(e.target.value.toUpperCase())} required />
+            <Field label="Driver / Contact" hint="Person who turned over the unit. Optional for fleet jobs — the company is the bill-to.">
+              <input className="input" value={customerName} onChange={(e) => setCustomerName(e.target.value.toUpperCase())} placeholder="e.g. Juan Dela Cruz" />
             </Field>
             <Field label="Brand / Model">
               <div className="py-2 text-gray-800 text-sm">{vehicle.brandModel || '—'}</div>
@@ -147,13 +306,15 @@ export default function ServiceReceiptCreate({ kind = 'receipt' }) {
           {/* Mobile: vertical card stack */}
           <div className="lg:hidden space-y-3">
             {items.map((row, i) => (
-              <LineCard
+              <LineItemCard
                 key={i}
                 index={i}
                 row={row}
                 onChange={(patch) => updateRow(i, patch)}
                 onRemove={() => removeRow(i)}
                 canRemove={items.length > 1}
+                vehicleMakeId={vehicleIds.makeId}
+                vehicleModelId={vehicleIds.modelId}
               />
             ))}
             <button
@@ -170,25 +331,19 @@ export default function ServiceReceiptCreate({ kind = 'receipt' }) {
           <div className="hidden lg:block bg-white rounded-2xl border overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 text-xs uppercase tracking-wider text-gray-600">
-                  <tr>
-                    <th className="px-3 py-2 text-left font-medium">Type</th>
-                    <th className="px-3 py-2 text-left font-medium">Qty</th>
-                    <th className="px-3 py-2 text-left font-medium">Service / Parts / Materials</th>
-                    <th className="px-3 py-2 text-right font-medium">Unit Cost</th>
-                    <th className="px-3 py-2 text-right font-medium">Sub Total</th>
-                    <th className="px-3 py-2"></th>
-                  </tr>
-                </thead>
+                <LineItemHeader />
                 <tbody className="divide-y">
                   {items.map((row, i) => (
-                    <LineRow
+                    <LineItemRow
                       key={i}
                       row={row}
                       onChange={(patch) => updateRow(i, patch)}
                       onAdd={addRow}
                       onRemove={() => removeRow(i)}
-                      isLast={i === items.length - 1}
+                      showAddInRowAction={i === items.length - 1}
+                      canRemove={items.length > 1}
+                      vehicleMakeId={vehicleIds.makeId}
+                      vehicleModelId={vehicleIds.modelId}
                     />
                   ))}
                 </tbody>
@@ -258,198 +413,14 @@ function Section({ title, children }) {
   )
 }
 
-function Field({ label, children, className = '' }) {
+function Field({ label, hint, children, className = '' }) {
   return (
     <div className={className}>
       <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">{label}</label>
       {children}
+      {hint && <div className="text-[10px] text-gray-400 mt-1">{hint}</div>}
     </div>
   )
 }
 
-// Mobile-first card for a single line item. Full-size inputs, an integer
-// stepper for qty, and a clear remove button. The parts autocomplete opens
-// as a full-width dropdown below the search field.
-function LineCard({ index, row, onChange, onRemove, canRemove }) {
-  const [showAuto, setShowAuto] = useState(false)
-  const subTotal = row.qty * row.unitCost
-  const filtered = row.description
-    ? PARTS_CATALOG.filter((p) => p.name.toLowerCase().includes(row.description.toLowerCase())).slice(0, 6)
-    : []
-  const pick = (p) => { onChange({ description: p.name, unitCost: p.srp || p.unitCost }); setShowAuto(false) }
 
-  const isLabor = row.type === 'Labor'
-  return (
-    <div className={`bg-white rounded-2xl border overflow-hidden ${isLabor ? 'border-sky-200' : 'border-gray-200'}`}>
-      <div className={`px-4 py-2 border-b flex items-center justify-between ${isLabor ? 'bg-sky-50' : 'bg-gray-50'}`}>
-        <div className="flex items-center gap-2">
-          <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${isLabor ? 'bg-sky-600 text-white' : 'bg-gray-700 text-white'}`}>
-            #{index + 1} · {isLabor ? 'Labor' : 'Parts'}
-          </span>
-        </div>
-        {canRemove && (
-          <button
-            type="button"
-            onClick={onRemove}
-            className="text-xs text-red-600 hover:text-red-700 font-bold flex items-center gap-1"
-          >
-            <Icon name="warn" className="w-3.5 h-3.5" />
-            Remove
-          </button>
-        )}
-      </div>
-      <div className="p-4 space-y-3">
-        <div>
-          <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Type</label>
-          <div className="grid grid-cols-2 gap-2">
-            {['Labor', 'Parts/Materials'].map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => onChange({ type: t })}
-                className={`text-sm font-bold py-2.5 rounded-xl border-2 transition-colors ${
-                  row.type === t
-                    ? (t === 'Labor' ? 'bg-sky-600 border-sky-600 text-white' : 'bg-gray-800 border-gray-800 text-white')
-                    : 'bg-white border-gray-200 text-gray-600'
-                }`}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="relative">
-          <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">
-            Service / Parts / Materials
-          </label>
-          <input
-            className="input"
-            value={row.description}
-            onChange={(e) => { onChange({ description: e.target.value }); setShowAuto(true) }}
-            onFocus={() => setShowAuto(true)}
-            onBlur={() => setTimeout(() => setShowAuto(false), 150)}
-            placeholder="Search catalog or enter custom…"
-          />
-          {showAuto && filtered.length > 0 && (
-            <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-white border rounded-xl shadow-xl text-xs max-h-64 overflow-y-auto">
-              {filtered.map((p) => (
-                <button type="button" key={p.code} onClick={() => pick(p)} className="block w-full text-left px-3 py-2 hover:bg-sky-50 border-b last:border-b-0">
-                  <div className="font-semibold text-gray-800">{p.name} <span className="font-mono text-gray-400">({p.code})</span></div>
-                  {p.compat && <div className="text-[11px] text-gray-500">{p.compat}</div>}
-                  <div className="text-[11px] text-gray-500 flex items-center gap-2 mt-0.5">
-                    <span className="font-bold text-green-700">{formatMoney(p.srp || p.unitCost)}</span>
-                    {p.supplier && <span>· {p.supplier}</span>}
-                    {p.stock != null && <span>· stock {p.stock}</span>}
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Qty</label>
-            <div className="flex items-center bg-gray-50 border rounded-xl overflow-hidden">
-              <button
-                type="button"
-                onClick={() => onChange({ qty: Math.max(1, (row.qty || 1) - 1) })}
-                className="w-10 h-11 text-xl font-black text-gray-600 hover:bg-gray-100"
-              >
-                −
-              </button>
-              <input
-                type="number"
-                min="1"
-                value={row.qty}
-                onChange={(e) => onChange({ qty: Math.max(1, Number(e.target.value) || 1) })}
-                className="flex-1 bg-transparent text-center font-bold text-base focus:outline-none min-w-0"
-              />
-              <button
-                type="button"
-                onClick={() => onChange({ qty: (row.qty || 1) + 1 })}
-                className="w-10 h-11 text-xl font-black text-gray-600 hover:bg-gray-100"
-              >
-                +
-              </button>
-            </div>
-          </div>
-          <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Unit Cost</label>
-            <input
-              type="number"
-              min="0"
-              value={row.unitCost}
-              onChange={(e) => onChange({ unitCost: Number(e.target.value) || 0 })}
-              className="input text-right font-mono"
-            />
-          </div>
-        </div>
-
-        <div className="bg-gray-50 rounded-xl px-4 py-2.5 flex items-center justify-between">
-          <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">Sub Total</span>
-          <span className="text-lg font-black text-gray-900">{formatMoney(subTotal)}</span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function LineRow({ row, onChange, onAdd, onRemove, isLast }) {
-  const subTotal = row.qty * row.unitCost
-  const [showAuto, setShowAuto] = useState(false)
-  const filtered = row.description
-    ? PARTS_CATALOG.filter((p) => p.name.toLowerCase().includes(row.description.toLowerCase())).slice(0, 6)
-    : []
-  const pick = (p) => { onChange({ description: p.name, unitCost: p.srp || p.unitCost }); setShowAuto(false) }
-
-  return (
-    <tr>
-      <td className="px-3 py-2">
-        <select value={row.type} onChange={(e) => onChange({ type: e.target.value })} className="input py-1 text-sm sm:text-xs min-w-[110px]">
-          <option>Labor</option>
-          <option>Parts/Materials</option>
-        </select>
-      </td>
-      <td className="px-3 py-2 w-20">
-        <input type="number" min="1" className="input py-1 text-sm sm:text-xs text-right" value={row.qty} onChange={(e) => onChange({ qty: Number(e.target.value) })} />
-      </td>
-      <td className="px-3 py-2 relative">
-        <input
-          className="input py-1 text-sm sm:text-xs"
-          value={row.description}
-          onChange={(e) => { onChange({ description: e.target.value }); setShowAuto(true) }}
-          onFocus={() => setShowAuto(true)}
-          placeholder="Search parts / service..."
-        />
-        {showAuto && filtered.length > 0 && (
-          <div className="absolute top-full left-0 z-20 mt-1 w-[90vw] max-w-sm sm:w-80 bg-white border rounded-md shadow-xl text-xs">
-            {filtered.map((p) => (
-              <button type="button" key={p.code} onClick={() => pick(p)} className="block w-full text-left px-3 py-2 hover:bg-sky-50 border-b last:border-b-0">
-                <div className="font-semibold text-gray-800">{p.name} ({p.code})</div>
-                {p.compat && <div className="text-[11px] text-gray-500">Compatible to: {p.compat}</div>}
-                {p.supplier && (
-                  <div className="text-[11px] text-gray-500">
-                    Supplier: {p.supplier} | Stock: {p.stock} | Reserved: {p.reserved} | SRP: {formatMoney(p.srp)}
-                  </div>
-                )}
-              </button>
-            ))}
-          </div>
-        )}
-      </td>
-      <td className="px-3 py-2 w-32">
-        <input type="number" className="input py-1 text-sm sm:text-xs text-right" value={row.unitCost} onChange={(e) => onChange({ unitCost: Number(e.target.value) })} />
-      </td>
-      <td className="px-3 py-2 w-28 text-right font-semibold">{formatMoney(subTotal)}</td>
-      <td className="px-3 py-2 w-20 text-center">
-        {isLast ? (
-          <button type="button" onClick={onAdd} className="bg-green-600 hover:bg-green-700 text-white rounded w-7 h-7 inline-flex items-center justify-center"><Icon name="plus" className="w-4 h-4" /></button>
-        ) : (
-          <button type="button" onClick={onRemove} className="bg-red-500 hover:bg-red-600 text-white rounded w-7 h-7 inline-flex items-center justify-center">−</button>
-        )}
-      </td>
-    </tr>
-  )
-}

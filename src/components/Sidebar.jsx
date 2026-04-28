@@ -57,6 +57,8 @@ function AdminSection({ profile }) {
     <Section title="Admin">
       <Item to="/admin/fleet-companies" label="Fleet Companies" />
       <Item to="/admin/users" label="Users" />
+      <Item to="/admin/vehicle-catalog" label="Vehicle Catalog" />
+      <Item to="/admin/cavite-catalog" label="Price Catalog" />
     </Section>
   )
 }
@@ -113,6 +115,8 @@ export default function Sidebar() {
           <Item to="/portal/service-log" label="Service Log" />
           <Item to="/portal/notifications" label="Notifications" />
           {canServiceQuotation(role) && <Item to="/portal/quotations" label="Service Quotations" />}
+          <Item to="/portal/invoices" label="Service Receipts" />
+          <Item to="/portal/statement" label="Statement of Account" />
           {canScheduleService(role) && <Item to="/portal/schedule-service" label="+ Request for Service" />}
         </Section>
         <AdminSection profile={profile} />
@@ -136,6 +140,9 @@ export default function Sidebar() {
         {canServiceRequest(role) && <Item to="/service-receipts" label="Service Receipts" />}
         {canServiceQuotation(role) && <Item to="/quotations" label="Service Quotations" />}
         {canServiceQuotation(role) && <Item to="/quotations/unbilled" label="Services for Quotation" />}
+        <Item to="/branch-invoices" label="Branch Invoices" />
+        <Item to="/client-invoices" label="Client Invoices" />
+        <Item to="/credit-notes" label="Credit Notes" />
         {canReports(role) && <Item to="/reports" label="Reports" />}
       </Section>
       <Section title="Data Management">

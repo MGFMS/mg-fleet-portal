@@ -6,18 +6,27 @@
 // shared across admin supervisor / MG Fleet manager / fleet client.
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { formatMoney } from '../lib/dummyData'
 import {
   QUOT_STATUS, QUOT_STATUS_LABELS, QUOT_ACTION,
-  availableQuotationActions, effectiveQuotationStatus,
-  transitionQuotation, addQuotationComment, setReceiptStatus,
-  watchReceiptByCode,
+  availableQuotationActions, canEditQuotation, canAddRevision,
+  currentRevisionRound, effectiveQuotationStatus,
+  transitionQuotation, updateQuotationItems, addQuotationRevision,
+  addQuotationComment, setReceiptStatus, watchReceiptByCode,
 } from '../lib/serviceReceipts'
+import {
+  canGenerateBranchInvoice, generateBranchInvoice, findInvoiceForQuotation,
+} from '../lib/branchInvoices'
+import { getAssessmentsForPlate } from '../lib/assessments'
+import { getMostRecentAppointmentByPlate } from '../lib/appointments'
 import Icon from '../components/ui/Icon'
 import PageHero from '../components/ui/PageHero'
 import StatusPill from '../components/ui/StatusPill'
+import LineItemCard from '../components/LineItemCard'
+import LineItemRow, { LineItemHeader } from '../components/LineItemRow'
+import { resolveVehicleIds } from '../lib/caviteCatalogSearch'
 
 export default function ServiceReceiptDetails() {
   const { code } = useParams()
@@ -51,12 +60,66 @@ export default function ServiceReceiptDetails() {
 // ── Quotation view ───────────────────────────────────────────────────────
 
 function QuotationDetail({ quot, profile }) {
+  const navigate = useNavigate()
   const status = effectiveQuotationStatus(quot)
   const statusLabel = QUOT_STATUS_LABELS[status] || status
   const actions = availableQuotationActions(quot, profile)
+  const editable = canEditQuotation(quot, profile)
+  const canRevise = canAddRevision(quot, profile)
+  const revision = currentRevisionRound(quot)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const [modalAction, setModalAction] = useState(null)
+  const [editMode, setEditMode] = useState(false)
+  const [revisionMode, setRevisionMode] = useState(false)
+
+  // Reassessment gate state for the Generate Branch Invoice button. Loaded
+  // once whenever status === APPROVED_FINAL (no point querying before).
+  const [gateState, setGateState] = useState({ loading: true, gate: null, existingInvoice: null })
+  useEffect(() => {
+    if (status !== QUOT_STATUS.APPROVED_FINAL || !quot.plateNo) {
+      setGateState({ loading: false, gate: null, existingInvoice: null })
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const [plateAssessments, existingInvoice] = await Promise.all([
+          getAssessmentsForPlate(quot.plateNo),
+          findInvoiceForQuotation(quot.id),
+        ])
+        if (cancelled) return
+        const gate = canGenerateBranchInvoice(quot, plateAssessments)
+        setGateState({ loading: false, gate, existingInvoice, plateAssessments })
+      } catch (err) {
+        if (!cancelled) setGateState({ loading: false, gate: { ok: false, reason: err.message || String(err) }, existingInvoice: null })
+      }
+    })()
+    return () => { cancelled = true }
+  }, [status, quot.plateNo, quot.id])
+
+  // Gate the "Generate Invoice" visibility to finance role + admin (the
+  // branch cashier/finance role actually raises the invoice; admin is the
+  // escape hatch per the shared-admin pattern).
+  const canIssueInvoice = Boolean(
+    profile?.is_admin || profile?.role === 'finance' || profile?.role === 'admin_supervisor' || profile?.role === 'branch_manager',
+  )
+
+  const issueInvoice = async () => {
+    if (busy || !gateState.gate?.ok) return
+    setBusy(true); setError(null)
+    try {
+      const inv = await generateBranchInvoice(quot.id, {
+        byProfile: profile,
+        plateAssessments: gateState.plateAssessments || [],
+      })
+      navigate(`/branch-invoices/${inv.code}`)
+    } catch (err) {
+      console.error('[branchInvoice] generate failed:', err)
+      setError(err.message || String(err))
+      setBusy(false)
+    }
+  }
 
   const onAction = async (action) => {
     if (action.requiresText) { setModalAction(action); return }
@@ -84,15 +147,20 @@ function QuotationDetail({ quot, profile }) {
   return (
     <div className="pb-32">
       <PageHero
-        eyebrow="QUOTATION"
+        eyebrow={revision > 1 ? `QUOTATION · REV ${revision}` : 'QUOTATION'}
         title={quot.code}
         subtitle={`${quot.plateNo} · ${quot.brandModel || 'Vehicle'}`}
         right={<TotalChip value={quot.estimatedTotal} />}
       />
 
       <div className="px-3 sm:px-6 pt-4 space-y-4">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <StatusPill status={statusLabel} />
+          {revision > 1 && (
+            <span className="text-[10px] font-bold tracking-widest uppercase bg-amber-100 text-amber-800 border border-amber-200 rounded-full px-2 py-0.5">
+              Revision {revision}
+            </span>
+          )}
           {quot.company && (
             <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500 truncate">
               {quot.company}
@@ -108,9 +176,102 @@ function QuotationDetail({ quot, profile }) {
           </div>
         )}
 
+        {quot.sourceAssessmentRwa && (
+          <SourceAssessmentCard rwa={quot.sourceAssessmentRwa} plate={quot.plateNo} />
+        )}
+
         <CustomerCard receipt={quot} />
-        <LineItemsCard receipt={quot} />
-        <TotalsCard receipt={quot} />
+
+        {editable && !editMode && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-center gap-3">
+            <div className="text-2xl leading-none">✏️</div>
+            <div className="flex-1 text-xs text-amber-800">
+              <div className="font-bold">This draft is editable.</div>
+              <div>Revise line items before forwarding — especially after a clarification request.</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setEditMode(true)}
+              className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-4 py-2 rounded-full shadow"
+            >
+              Edit items
+            </button>
+          </div>
+        )}
+
+        {status === QUOT_STATUS.APPROVED_FINAL && (
+          <InvoiceGateCard
+            gateState={gateState}
+            canIssueInvoice={canIssueInvoice}
+            busy={busy}
+            onIssue={issueInvoice}
+            plateNo={quot.plateNo}
+          />
+        )}
+
+        {canRevise && !revisionMode && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-center gap-3">
+            <div className="text-2xl leading-none">➕</div>
+            <div className="flex-1 text-xs text-amber-800">
+              <div className="font-bold">Scope grew during repair?</div>
+              <div>Add new items here — they'll be forwarded up the chain for the client to approve before work on the delta starts.</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setRevisionMode(true)}
+              className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-4 py-2 rounded-full shadow shrink-0"
+            >
+              Add revision
+            </button>
+          </div>
+        )}
+
+        {/* Round 39 — when the quote has been invoiced, surface a clear
+            locked state in place of the revision affordance. canAddRevision
+            already returns false in this case; this just explains why. */}
+        {status === QUOT_STATUS.APPROVED_FINAL
+          && (quot.branchInvoiceCode || quot.branchInvoiceId)
+          && !revisionMode && (
+          <div className="bg-gray-100 border-2 border-gray-300 rounded-2xl p-3 flex items-center gap-3">
+            <div className="text-2xl leading-none">🔒</div>
+            <div className="flex-1 text-xs text-gray-700">
+              <div className="font-bold text-gray-900">Quotation locked — invoice issued</div>
+              <div>
+                Branch invoice <span className="font-mono font-bold">{quot.branchInvoiceCode}</span> was generated from this quote, so the line items are now immutable.
+                For changes, use a <strong>credit note</strong> on the invoice or open a <strong>new quotation</strong>.
+              </div>
+            </div>
+            {quot.branchInvoiceCode && (
+              <Link
+                to={`/branch-invoices/${quot.branchInvoiceCode}`}
+                className="bg-gray-900 hover:bg-black text-white font-bold text-xs px-4 py-2 rounded-full shrink-0"
+              >
+                View invoice →
+              </Link>
+            )}
+          </div>
+        )}
+
+        {editMode ? (
+          <EditableItems
+            quot={quot}
+            profile={profile}
+            onCancel={() => setEditMode(false)}
+            onSaved={() => setEditMode(false)}
+          />
+        ) : revisionMode ? (
+          <RevisionEditor
+            quot={quot}
+            profile={profile}
+            onCancel={() => setRevisionMode(false)}
+            onSaved={() => setRevisionMode(false)}
+          />
+        ) : (
+          <>
+            <GroupedItemsCard quot={quot} />
+            <TotalsCard receipt={quot} />
+          </>
+        )}
 
         <CommentThread quot={quot} profile={profile} />
       </div>
@@ -121,18 +282,37 @@ function QuotationDetail({ quot, profile }) {
           className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-[0_-4px_12px_rgba(0,0,0,0.05)]"
           style={{ paddingBottom: 'env(safe-area-inset-bottom, 0)' }}
         >
+          {/* Round 39 — block forward transitions when any line is ₱0. */}
+          {(() => {
+            const unpriced = (quot.items || []).filter((i) => Number(i.unitCost) <= 0)
+            if (unpriced.length === 0) return null
+            return (
+              <div className="bg-amber-100 border-b border-amber-300 text-amber-900 text-xs sm:text-sm px-3 sm:px-6 py-2">
+                ⚠ <strong>{unpriced.length} line{unpriced.length === 1 ? '' : 's'}</strong> still at ₱0 —
+                set unit costs before forwarding. Edit items to enter prices, or use the catalog autocomplete to pick a priced item.
+              </div>
+            )
+          })()}
           <div className="px-3 sm:px-6 py-3 grid gap-2" style={{ gridTemplateColumns: `repeat(${actions.length}, 1fr)` }}>
-            {actions.map((action) => (
-              <button
-                key={action.key}
-                type="button"
-                disabled={busy}
-                onClick={() => onAction(action)}
-                className={`text-sm font-bold px-3 py-3 rounded-xl active:scale-95 transition-transform disabled:opacity-40 ${toneClasses(action.tone)}`}
-              >
-                {actionLabel(action)}
-              </button>
-            ))}
+            {actions.map((action) => {
+              const isForward = action.nextStatus === QUOT_STATUS.FOR_MG_FLEET_REVIEW
+                             || action.nextStatus === QUOT_STATUS.FOR_CLIENT_REVIEW
+                             || action.nextStatus === QUOT_STATUS.APPROVED_FINAL
+              const unpriced = (quot.items || []).filter((i) => Number(i.unitCost) <= 0).length
+              const blocked = isForward && unpriced > 0
+              return (
+                <button
+                  key={action.key}
+                  type="button"
+                  disabled={busy || blocked}
+                  onClick={() => onAction(action)}
+                  className={`text-sm font-bold px-3 py-3 rounded-xl active:scale-95 transition-transform disabled:opacity-40 disabled:cursor-not-allowed ${toneClasses(action.tone)}`}
+                  title={blocked ? `Set unit costs on ${unpriced} line${unpriced === 1 ? '' : 's'} first.` : undefined}
+                >
+                  {actionLabel(action)}
+                </button>
+              )
+            })}
           </div>
         </div>
       )}
@@ -148,6 +328,616 @@ function QuotationDetail({ quot, profile }) {
     </div>
   )
 }
+
+// ── Invoice gate (Round 12) ─────────────────────────────────────────────
+//
+// Three states to render on an APPROVED_FINAL quotation:
+//   1) Already invoiced → show the invoice code with a link.
+//   2) Gate passes → green card + Generate Branch Invoice button.
+//   3) Gate fails → amber/red card with the reason (waiting reassessment,
+//      reassessment deferred, etc.)
+
+function InvoiceGateCard({ gateState, canIssueInvoice, busy, onIssue, plateNo }) {
+  if (gateState.loading) {
+    return (
+      <div className="bg-white rounded-2xl border px-4 py-3 text-sm text-gray-500">
+        Checking invoice readiness…
+      </div>
+    )
+  }
+
+  const { gate, existingInvoice } = gateState
+
+  if (existingInvoice) {
+    const status = existingInvoice.status || 'OPEN'
+    return (
+      <div className="bg-gray-900 text-white rounded-2xl p-4 flex items-center gap-3">
+        <div className="text-2xl leading-none">🧾</div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[10px] font-bold tracking-widest uppercase opacity-70">ALREADY INVOICED</div>
+          <div className="font-black text-lg font-mono truncate">{existingInvoice.code}</div>
+          <div className="text-xs opacity-70 mt-0.5">Status: {status}</div>
+        </div>
+        <Link
+          to={`/branch-invoices/${existingInvoice.code}`}
+          className="bg-white text-gray-900 font-bold text-xs px-4 py-2 rounded-full shrink-0"
+        >
+          View invoice →
+        </Link>
+      </div>
+    )
+  }
+
+  if (gate?.ok) {
+    return (
+      <div className="bg-green-50 border-2 border-green-300 rounded-2xl p-4">
+        <div className="flex items-start gap-3">
+          <div className="text-2xl leading-none">✅</div>
+          <div className="flex-1 min-w-0">
+            <div className="font-black text-green-800 text-sm">Ready to invoice MG Fleet</div>
+            <div className="text-xs text-green-700 mt-1">
+              Post-repair reassessment <span className="font-mono font-bold">{gate.reassessment?.rwaNumber}</span>
+              {gate.reassessment?.submittedAt && ` · ${shortDate(gate.reassessment.submittedAt)}`} passed.
+              {gate.reassessment?.classification?.overallStatus && (
+                <> Unit is <strong className="uppercase">{gate.reassessment.classification.overallStatus}</strong>.</>
+              )}
+            </div>
+            {canIssueInvoice ? (
+              <button
+                type="button"
+                onClick={onIssue}
+                disabled={busy}
+                className="mt-3 bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white text-sm font-bold px-5 py-2.5 rounded-full shadow active:scale-95 transition-transform"
+              >
+                {busy ? 'Generating…' : 'Generate branch invoice →'}
+              </button>
+            ) : (
+              <div className="mt-2 text-[11px] text-gray-600">
+                Only finance, admin supervisor, branch manager, or admin can issue the branch invoice.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Gate failed.
+  const isDeferred = /deferred/i.test(gate?.reason || '')
+  const tone = isDeferred ? 'red' : 'amber'
+  const bg = tone === 'red' ? 'bg-red-50 border-red-300' : 'bg-amber-50 border-amber-300'
+  const textTitle = tone === 'red' ? 'text-red-800' : 'text-amber-800'
+  const textBody = tone === 'red' ? 'text-red-700' : 'text-amber-700'
+
+  // Round 22 — when the gate fails because no post-repair re-assessment
+  // exists yet, give the user a one-click path to start one. Look up
+  // the most recent appointment for this plate and deep-link to its
+  // assessment form with type=Re-Assessment pre-selected.
+  const needsReassessment = /reassessment/i.test(gate?.reason || '')
+
+  return (
+    <div className={`${bg} border-2 rounded-2xl p-4`}>
+      <div className="flex items-start gap-3">
+        <div className="text-2xl leading-none">{tone === 'red' ? '⛔' : '⏳'}</div>
+        <div className="flex-1 min-w-0">
+          <div className={`font-black text-sm ${textTitle}`}>
+            {tone === 'red' ? 'Reassessment blocked invoicing' : 'Not ready to invoice yet'}
+          </div>
+          <div className={`text-xs mt-1 ${textBody}`}>{gate?.reason}</div>
+          {needsReassessment && plateNo && (
+            <ReassessmentLauncher plateNo={plateNo} />
+          )}
+          {gate?.reassessment?.rwaNumber && (
+            <Link
+              to={`/assessments/${gate.reassessment.rwaNumber}`}
+              className="mt-2 inline-block text-[11px] text-brand font-bold hover:underline"
+            >
+              View reassessment {gate.reassessment.rwaNumber} →
+            </Link>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Round 30 — surfaces the assessment that drove this quote so the client
+// can review the findings before approving / rejecting. Visible to
+// everyone (staff sees it for context too). Links into the public
+// AssessmentView (review_status gating still applies; if the assessment
+// hasn't been forwarded, the page will show the not-yet-shared notice).
+function SourceAssessmentCard({ rwa, plate }) {
+  return (
+    <div className="bg-indigo-50 border-2 border-indigo-200 rounded-2xl p-4">
+      <div className="flex items-start gap-3">
+        <div className="text-2xl leading-none">🔍</div>
+        <div className="flex-1 min-w-0">
+          <div className="font-black text-indigo-900 text-sm">Roadworthy assessment available</div>
+          <div className="text-xs text-indigo-800 mt-1">
+            This quotation is built from the technical findings of assessment{' '}
+            <span className="font-mono font-bold">{rwa}</span>{plate ? ` on ${plate}` : ''}. Open it to see exactly which items
+            were flagged and why — useful before approving the line items below.
+          </div>
+          <Link
+            to={`/assessments/${rwa}`}
+            className="inline-block mt-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-full shadow"
+          >
+            View assessment findings →
+          </Link>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Looks up the most recent appointment for the plate, then renders a
+// "Start Re-Assessment →" button deep-linking into the assessment form
+// with type=Re-Assessment pre-selected. Falls back to a hint pointing
+// at My Garage if no appointment is found.
+function ReassessmentLauncher({ plateNo }) {
+  const [apptId, setApptId] = useState(undefined) // undefined = loading
+  useEffect(() => {
+    let cancelled = false
+    getMostRecentAppointmentByPlate(plateNo).then((appt) => {
+      if (!cancelled) setApptId(appt?.id || null)
+    })
+    return () => { cancelled = true }
+  }, [plateNo])
+
+  if (apptId === undefined) {
+    return <div className="mt-3 text-[11px] text-gray-500 italic">Looking up appointment…</div>
+  }
+  if (!apptId) {
+    return (
+      <div className="mt-3 text-[11px] text-gray-700">
+        Find the appointment in <Link to="/home" className="text-brand font-bold hover:underline">My Garage</Link>, click ASSESS, then choose <strong>Re-Assessment</strong> as the type.
+      </div>
+    )
+  }
+  return (
+    <Link
+      to={`/appointments/${apptId}/assess?type=Re-Assessment`}
+      className="mt-3 inline-block bg-brand hover:bg-brand-dark text-white text-xs font-bold px-4 py-2 rounded-lg shadow"
+    >
+      Start Re-Assessment →
+    </Link>
+  )
+}
+
+// ── Line items grouped by revision round ────────────────────────────────
+//
+// Each revision is its own block so the client sees exactly what's new this
+// round vs. what they already approved in previous rounds. Items without a
+// revisionRound stamp (legacy or original) fall into round 1.
+
+function GroupedItemsCard({ quot }) {
+  const items = quot.items || []
+  if (items.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl border border-dashed p-5 text-center text-gray-400 text-sm">
+        No line items.
+      </div>
+    )
+  }
+
+  // Bucket by round.
+  const groups = new Map()
+  for (const i of items) {
+    const r = Number(i.revisionRound) || 1
+    if (!groups.has(r)) groups.set(r, [])
+    groups.get(r).push(i)
+  }
+  const rounds = [...groups.keys()].sort((a, b) => a - b)
+  const latestRound = rounds[rounds.length - 1]
+  const quotStatus = effectiveQuotationStatus(quot)
+  const latestIsPending = latestRound > 1 && quotStatus !== QUOT_STATUS.APPROVED_FINAL
+
+  return (
+    <section className="space-y-3">
+      {rounds.map((round) => {
+        const roundItems = groups.get(round)
+        const subtotal = roundItems.reduce((s, i) => s + (i.subTotal || (i.qty * i.unitCost) || 0), 0)
+        const isLatestPending = round === latestRound && latestIsPending
+        const isOriginal = round === 1
+        return (
+          <div
+            key={round}
+            className={`rounded-2xl border overflow-hidden ${isLatestPending ? 'border-amber-300 ring-1 ring-amber-200 bg-white' : 'border-gray-200 bg-white'}`}
+          >
+            <div className={`px-4 py-2.5 border-b flex items-center justify-between gap-2 ${
+              isLatestPending ? 'bg-amber-50 border-amber-200' : isOriginal ? 'bg-green-50 border-green-100' : 'bg-gray-50'
+            }`}>
+              <div className="flex items-center gap-2 min-w-0">
+                <span className={`text-[10px] font-black tracking-widest uppercase px-2 py-0.5 rounded-full ${
+                  isLatestPending ? 'bg-amber-600 text-white'
+                  : isOriginal ? 'bg-green-600 text-white'
+                  : 'bg-gray-700 text-white'
+                }`}>
+                  Rev {round}
+                </span>
+                <span className={`text-[11px] font-semibold truncate ${
+                  isLatestPending ? 'text-amber-800'
+                  : isOriginal ? 'text-green-800'
+                  : 'text-gray-600'
+                }`}>
+                  {isLatestPending
+                    ? `Pending approval · ${roundItems.length} new item${roundItems.length === 1 ? '' : 's'}`
+                    : isOriginal
+                      ? `Original${roundItems.length > 1 ? ` · ${roundItems.length} items` : ''}${round < latestRound ? ' (approved)' : ''}`
+                      : `Approved · ${roundItems.length} item${roundItems.length === 1 ? '' : 's'}`}
+                </span>
+              </div>
+              <span className={`text-sm font-black whitespace-nowrap ${isLatestPending ? 'text-amber-700' : 'text-gray-800'}`}>
+                {formatMoney(subtotal)}
+              </span>
+            </div>
+
+            {/* Mobile: card stack */}
+            <div className="lg:hidden divide-y">
+              {roundItems.map((item, i) => <GroupedItemRow key={i} item={item} />)}
+            </div>
+
+            {/* Desktop: table */}
+            <div className="hidden lg:block overflow-x-auto">
+              <table className="min-w-full text-sm whitespace-nowrap">
+                <thead className="bg-gray-50 text-xs uppercase tracking-wider text-gray-600">
+                  <tr>
+                    <th className="px-4 py-2 text-left font-medium">Type</th>
+                    <th className="px-4 py-2 text-left font-medium">Qty</th>
+                    <th className="px-4 py-2 text-left font-medium">Description</th>
+                    <th className="px-4 py-2 text-right font-medium">Unit Cost</th>
+                    <th className="px-4 py-2 text-right font-medium">Sub Total</th>
+                    {round > 1 && <th className="px-4 py-2 text-left font-medium">Added</th>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {roundItems.map((item, i) => (
+                    <tr key={i} className="bg-white">
+                      <td className="px-4 py-2">{item.type}</td>
+                      <td className="px-4 py-2">{item.qty}</td>
+                      <td className="px-4 py-2 uppercase">{item.description}</td>
+                      <td className="px-4 py-2 text-right">{formatMoney(item.unitCost)}</td>
+                      <td className="px-4 py-2 text-right font-semibold">{formatMoney(item.subTotal || item.qty * item.unitCost)}</td>
+                      {round > 1 && (
+                        <td className="px-4 py-2 text-[11px] text-gray-500">
+                          {item.addedByName || '—'}{item.addedAt ? ` · ${shortDate(item.addedAt)}` : ''}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      })}
+    </section>
+  )
+}
+
+function GroupedItemRow({ item }) {
+  return (
+    <div className="p-3">
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${item.type === 'Labor' ? 'bg-sky-600 text-white' : 'bg-gray-700 text-white'}`}>
+          {item.type}
+        </span>
+        <span className="text-xs text-gray-500 font-bold">× {item.qty}</span>
+      </div>
+      <div className="text-sm font-semibold text-gray-900 uppercase break-words">
+        {item.description || '—'}
+      </div>
+      <div className="mt-1.5 flex items-baseline justify-between">
+        <span className="text-[11px] text-gray-500">
+          {formatMoney(item.unitCost)} × {item.qty}
+        </span>
+        <span className="text-base font-black text-gray-900">{formatMoney(item.subTotal || item.qty * item.unitCost)}</span>
+      </div>
+      {item.addedByName && item.revisionRound > 1 && (
+        <div className="mt-1 text-[10px] text-gray-400">
+          added by {item.addedByName}{item.addedAt ? ` · ${shortDate(item.addedAt)}` : ''}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function shortDate(iso) {
+  const d = new Date(iso)
+  if (isNaN(d)) return ''
+  return d.toLocaleString('en-PH', { month: 'short', day: 'numeric' })
+}
+
+// ── Revision editor — add NEW items to an approved quotation ────────────
+
+function RevisionEditor({ quot, profile, onCancel, onSaved }) {
+  const [items, setItems] = useState([{ type: 'Parts/Materials', qty: 1, description: '', unitCost: 0 }])
+  const [notes, setNotes] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
+
+  const [vehicleIds, setVehicleIds] = useState({ makeId: null, modelId: null })
+  useEffect(() => {
+    let cancelled = false
+    resolveVehicleIds(quot.make || quot.brand, quot.model).then((ids) => {
+      if (!cancelled) setVehicleIds(ids)
+    })
+    return () => { cancelled = true }
+  }, [quot.make, quot.brand, quot.model])
+
+  const deltaTotal = items.reduce((s, i) => s + ((Number(i.qty) || 0) * (Number(i.unitCost) || 0)), 0)
+  const nextRound = currentRevisionRound(quot) + 1
+
+  const update = (idx, patch) => setItems(items.map((r, i) => i === idx ? { ...r, ...patch } : r))
+  const remove = (idx) => setItems(items.filter((_, i) => i !== idx))
+  const add = () => setItems([...items, { type: 'Parts/Materials', qty: 1, description: '', unitCost: 0 }])
+
+  const save = async () => {
+    if (saving) return
+    const cleaned = items.filter((i) => String(i.description || '').trim())
+    if (cleaned.length === 0) { setError('Add at least one item with a description.'); return }
+    setSaving(true); setError(null)
+    try {
+      await addQuotationRevision(quot.id, { newItems: cleaned, notes, byProfile: profile })
+      onSaved?.()
+    } catch (err) {
+      console.error('[quotation] revision save failed:', err)
+      setError(err.message || String(err))
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="bg-white rounded-2xl border overflow-hidden">
+      <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-center justify-between">
+        <div>
+          <div className="text-[11px] uppercase tracking-widest font-bold text-amber-800">Drafting Revision {nextRound}</div>
+          <div className="text-[10px] text-amber-700">Existing items stay as approved. Add only what's new.</div>
+        </div>
+        <span className="text-[10px] font-bold text-amber-700">{items.length} new</span>
+      </div>
+
+      <div className="p-3 space-y-3">
+        {/* Mobile: card stack */}
+        <div className="lg:hidden space-y-3">
+          {items.map((row, i) => (
+            <LineItemCard
+              key={i}
+              index={i}
+              row={row}
+              onChange={(patch) => update(i, patch)}
+              onRemove={() => remove(i)}
+              canRemove={items.length > 1}
+              vehicleMakeId={vehicleIds.makeId}
+              vehicleModelId={vehicleIds.modelId}
+            />
+          ))}
+        </div>
+
+        {/* Desktop: compact table */}
+        <div className="hidden lg:block bg-white rounded-2xl border overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <LineItemHeader />
+              <tbody className="divide-y">
+                {items.map((row, i) => (
+                  <LineItemRow
+                    key={i}
+                    row={row}
+                    onChange={(patch) => update(i, patch)}
+                    onRemove={() => remove(i)}
+                    canRemove={items.length > 1}
+                    vehicleMakeId={vehicleIds.makeId}
+                    vehicleModelId={vehicleIds.modelId}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={add}
+          className="w-full bg-white border-2 border-dashed border-gray-300 text-gray-600 hover:border-brand hover:text-brand rounded-2xl py-3 font-bold text-sm flex items-center justify-center gap-1.5"
+        >
+          <Icon name="plus" className="w-4 h-4" />
+          Add item
+        </button>
+
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-1">Notes for this revision</div>
+          <textarea
+            rows={2}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            className="input text-sm"
+            placeholder="Why is this needed? (e.g. discovered worn tie-rod during brake job)"
+          />
+        </div>
+
+        <div className="bg-amber-50 rounded-xl px-4 py-3 flex items-center justify-between">
+          <span className="text-[11px] font-bold uppercase tracking-widest text-amber-800">Revision delta</span>
+          <span className="text-xl font-black text-amber-700">+{formatMoney(deltaTotal)}</span>
+        </div>
+
+        {error && <div className="text-[11px] text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">Save failed: {error}</div>}
+
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={saving}
+            className="bg-white border-2 border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40 font-bold text-sm px-4 py-3 rounded-xl active:scale-95 transition-transform"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            className="bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white font-bold text-sm px-4 py-3 rounded-xl shadow active:scale-95 transition-transform"
+          >
+            {saving ? 'Saving…' : `Submit revision ${nextRound}`}
+          </button>
+        </div>
+
+        <div className="text-[10px] text-gray-500 text-center">
+          Submitting will reset the chain to <strong>MG Fleet review</strong>. The client will see Revision {nextRound} as pending alongside the already-approved items.
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ── Editable line items (DRAFT only, supervisor/admin) ──────────────────
+
+function EditableItems({ quot, profile, onCancel, onSaved }) {
+  const [items, setItems] = useState(() =>
+    (quot.items || []).map((i) => ({
+      type: i.type || 'Parts/Materials',
+      qty: Number(i.qty) || 1,
+      description: i.description || '',
+      unitCost: Number(i.unitCost) || 0,
+      // Preserve revisionRound so the LineItemCard's Rev badge tracks
+      // which round each line came from. New rows added during edit
+      // default to round 1 (the current draft).
+      revisionRound: i.revisionRound || 1,
+    })),
+  )
+  const [notes, setNotes] = useState(quot.notes || '')
+  const [saving, setSaving] = useState(false)
+
+  // Round 35 — resolve free-text make/model on the quote to caviteIds
+  // for the autocomplete vehicle filter.
+  const [vehicleIds, setVehicleIds] = useState({ makeId: null, modelId: null })
+  useEffect(() => {
+    let cancelled = false
+    resolveVehicleIds(quot.make || quot.brand, quot.model).then((ids) => {
+      if (!cancelled) setVehicleIds(ids)
+    })
+    return () => { cancelled = true }
+  }, [quot.make, quot.brand, quot.model])
+  const [error, setError] = useState(null)
+
+  const laborTotal = items.filter((i) => i.type === 'Labor').reduce((s, i) => s + i.qty * i.unitCost, 0)
+  const matTotal   = items.filter((i) => i.type !== 'Labor').reduce((s, i) => s + i.qty * i.unitCost, 0)
+  const grand = laborTotal + matTotal
+
+  const updateRow = (idx, patch) => setItems(items.map((r, i) => i === idx ? { ...r, ...patch } : r))
+  const removeRow = (idx) => setItems(items.filter((_, i) => i !== idx))
+  const addRow = () => setItems([...items, { type: 'Parts/Materials', qty: 1, description: '', unitCost: 0 }])
+
+  const save = async () => {
+    if (saving) return
+    setSaving(true); setError(null)
+    try {
+      await updateQuotationItems(quot.id, { items, notes, byProfile: profile })
+      onSaved?.()
+    } catch (err) {
+      console.error('[quotation] edit save failed:', err)
+      setError(err.message || String(err))
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="bg-white rounded-2xl border overflow-hidden">
+      <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-center justify-between">
+        <div className="text-[11px] uppercase tracking-widest font-bold text-amber-800">Editing line items</div>
+        <span className="text-[10px] text-amber-700">{items.length} item{items.length === 1 ? '' : 's'}</span>
+      </div>
+
+      <div className="p-3 space-y-3">
+        {/* Mobile: card stack */}
+        <div className="lg:hidden space-y-3">
+          {items.map((row, i) => (
+            <LineItemCard
+              key={i}
+              index={i}
+              row={row}
+              onChange={(patch) => updateRow(i, patch)}
+              onRemove={() => removeRow(i)}
+              canRemove={items.length > 1}
+              showRevisionTag
+              vehicleMakeId={vehicleIds.makeId}
+              vehicleModelId={vehicleIds.modelId}
+            />
+          ))}
+        </div>
+
+        {/* Desktop: compact table — same as the create page */}
+        <div className="hidden lg:block bg-white rounded-2xl border overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <LineItemHeader />
+              <tbody className="divide-y">
+                {items.map((row, i) => (
+                  <LineItemRow
+                    key={i}
+                    row={row}
+                    onChange={(patch) => updateRow(i, patch)}
+                    onRemove={() => removeRow(i)}
+                    canRemove={items.length > 1}
+                    vehicleMakeId={vehicleIds.makeId}
+                    vehicleModelId={vehicleIds.modelId}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={addRow}
+          className="w-full bg-white border-2 border-dashed border-gray-300 text-gray-600 hover:border-brand hover:text-brand rounded-2xl py-3 font-bold text-sm flex items-center justify-center gap-1.5"
+        >
+          <Icon name="plus" className="w-4 h-4" />
+          Add item
+        </button>
+
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-1">Notes</div>
+          <textarea
+            rows={2}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            className="input text-sm"
+            placeholder="Any notes for the MG Fleet manager or client…"
+          />
+        </div>
+
+        <div className="bg-gray-50 rounded-xl px-4 py-3 flex items-center justify-between">
+          <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">New Estimated Total</span>
+          <span className="text-xl font-black text-green-700">{formatMoney(grand)}</span>
+        </div>
+
+        {error && <div className="text-[11px] text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">Save failed: {error}</div>}
+
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={saving}
+            className="bg-white border-2 border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40 font-bold text-sm px-4 py-3 rounded-xl active:scale-95 transition-transform"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            className="bg-amber-600 hover:bg-amber-700 disabled:opacity-40 text-white font-bold text-sm px-4 py-3 rounded-xl shadow active:scale-95 transition-transform"
+          >
+            {saving ? 'Saving…' : 'Save revisions'}
+          </button>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 
 // ── Chain stepper ────────────────────────────────────────────────────────
 
@@ -367,8 +1157,10 @@ function auditVerb(action, to) {
     case QUOT_ACTION.BOUNCE_TO_SUPERVISOR:  return 'bounced back to supervisor'
     case QUOT_ACTION.CLIENT_APPROVE:        return 'APPROVED the quotation'
     case QUOT_ACTION.CLIENT_REJECT:         return 'REJECTED the quotation'
-    case QUOT_ACTION.CLIENT_CLARIFY:        return 'requested clarification'
+    case QUOT_ACTION.CLIENT_CLARIFY:        return 'requested clarification — bounced to draft'
     case QUOT_ACTION.REOPEN_TO_DRAFT:       return 're-opened as draft'
+    case 'edit_items':                      return 'revised the line items'
+    case 'add_revision':                    return 'added a mid-repair revision'
     case 'create':                          return 'created the quotation'
     default:                                return `changed status to ${to || '—'}`
   }
@@ -381,6 +1173,8 @@ function auditIconGlyph(action) {
     case QUOT_ACTION.CLIENT_CLARIFY:       return '?'
     case QUOT_ACTION.BOUNCE_TO_SUPERVISOR: return '↩'
     case QUOT_ACTION.REOPEN_TO_DRAFT:      return '↻'
+    case 'edit_items':                     return '✏'
+    case 'add_revision':                   return '➕'
     default:                               return '→'
   }
 }
@@ -391,6 +1185,8 @@ function auditIconTone(action) {
     case QUOT_ACTION.CLIENT_REJECT:        return 'bg-red-600 text-white'
     case QUOT_ACTION.CLIENT_CLARIFY:       return 'bg-amber-500 text-white'
     case QUOT_ACTION.BOUNCE_TO_SUPERVISOR: return 'bg-amber-500 text-white'
+    case 'edit_items':                     return 'bg-amber-600 text-white'
+    case 'add_revision':                   return 'bg-amber-600 text-white'
     default:                               return 'bg-brand text-white'
   }
 }
