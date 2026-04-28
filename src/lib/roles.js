@@ -15,6 +15,7 @@
 //   serviceQuotation — Service Quotations (/quotations)
 //   reports          — Reports (/reports)
 //   myGarage         — My Garage dashboard + My Mechanics (/home)
+//   fleet            — Data Management > Fleet (/vehicles)
 //   myFleet          — My Fleet (/portal/my-fleet)
 //   clientDashboard  — Fleet client dashboard (/portal)
 //   canApproveQuotations — Can approve/disapprove service quotations
@@ -31,6 +32,7 @@ export const ROLE_REGISTRY = {
     serviceQuotation: true,
     reports: true,
     myGarage: true,
+    fleet: true,
   },
   admin_assistance: {
     label: 'Admin Assistance',
@@ -156,6 +158,7 @@ export const canServiceRequest = (role) => Boolean(getRoleInfo(role)?.serviceReq
 export const canServiceQuotation = (role) => Boolean(getRoleInfo(role)?.serviceQuotation)
 export const canReports = (role) => Boolean(getRoleInfo(role)?.reports)
 export const canMyGarage = (role) => Boolean(getRoleInfo(role)?.myGarage)
+export const canFleet = (role) => Boolean(getRoleInfo(role)?.fleet)
 export const canMyFleet = (role) => Boolean(getRoleInfo(role)?.myFleet)
 export const canClientDashboard = (role) => Boolean(getRoleInfo(role)?.clientDashboard)
 export const canApproveQuotations = (role) => Boolean(getRoleInfo(role)?.canApproveQuotations)

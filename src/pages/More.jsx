@@ -10,7 +10,7 @@ import { useAuth } from '../context/AuthContext'
 import {
   isCustomer, roleLabel,
   canBooking, canServiceRequest, canServiceQuotation,
-  canReports, canMyGarage, canScheduleService,
+  canReports, canMyGarage, canFleet, canScheduleService,
 } from '../lib/roles'
 import Icon from '../components/ui/Icon'
 
@@ -148,7 +148,7 @@ function StaffMenu({ profile }) {
       <SectionHeader>Data Management</SectionHeader>
       <div className="bg-white divide-y">
         <Row to="/customers" icon="user" label="Customers" />
-        <Row to="/vehicles" icon="car" label="Fleet" />
+        {canFleet(role) && <Row to="/vehicles" icon="car" label="Fleet" />}
         <Row to="/mechanics" icon="tool" label="Mechanics" />
         <Row to="/services" icon="tool" label="Services Offered" />
       </div>

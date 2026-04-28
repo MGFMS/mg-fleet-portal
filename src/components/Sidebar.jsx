@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext'
 import {
   isCustomer, roleLabel,
   canBooking, canAssess, canServiceRequest, canServiceQuotation,
-  canReports, canMyGarage, canMyFleet, canClientDashboard, canScheduleService,
+  canReports, canMyGarage, canFleet, canMyFleet, canClientDashboard, canScheduleService,
 } from '../lib/roles'
 
 function Section({ title, children }) {
@@ -140,7 +140,7 @@ export default function Sidebar() {
       </Section>
       <Section title="Data Management">
         <Item to="/customers" label="Customers" />
-        <Item to="/vehicles" label="Fleet" />
+        {canFleet(role) && <Item to="/vehicles" label="Fleet" />}
         <Item to="/mechanics" label="Mechanics" />
         <Item to="/services" label="Services Offered" />
       </Section>

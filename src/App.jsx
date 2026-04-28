@@ -84,9 +84,9 @@ export default function App() {
           {/* Reports (requires reports permission) */}
           <Route path="/reports"               element={<ProtectedRoute allowedCategories={INTERNAL} requiredPermission="reports"><Reports /></ProtectedRoute>} />
 
-          {/* Data management — available to all internal roles */}
+          {/* Data management */}
           <Route path="/customers"             element={<ProtectedRoute allowedCategories={INTERNAL}><Customers /></ProtectedRoute>} />
-          <Route path="/vehicles"              element={<ProtectedRoute allowedCategories={INTERNAL}><Vehicles /></ProtectedRoute>} />
+          <Route path="/vehicles"              element={<ProtectedRoute allowedCategories={INTERNAL} requiredPermission="fleet"><Vehicles /></ProtectedRoute>} />
           <Route path="/vehicles/search"       element={<ProtectedRoute allowedCategories={BOTH}>{ph('Vehicle Search', 'Jump straight to a plate from the topbar.')}</ProtectedRoute>} />
           <Route path="/vehicles/:plateNo"     element={<ProtectedRoute allowedCategories={BOTH}><VehicleDetails /></ProtectedRoute>} />
           <Route path="/assessments/:rwa"      element={<ProtectedRoute allowedCategories={BOTH}><AssessmentView /></ProtectedRoute>} />
