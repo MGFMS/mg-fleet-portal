@@ -37,7 +37,43 @@ export default function FixUser() {
   }
 
   const createFinanceUser = async () => {
-    setStatus('Step 1: Go to Admin > Users > Invite User. Enter email: finance@test.com, role: MG Fleet Finance, check "Send a temporary password", enter test1234, click Send invite. The invite flow will create both the Auth account and user doc.')
+    setStatus('Step 1: Go to Admin > Users > Invite User. Enter email: finance@test.com, role: MG Fleet Finance, check "Send a temporary password", enter test1234, click Send invite.')
+  }
+
+  const fixGmUser = async () => {
+    setStatus('Updating gm@test.com...')
+    try {
+      // Find the user doc by checking all users — we'll update by UID
+      const { getDocs, query, where } = await import('firebase/firestore')
+      const snap = await getDocs(query(collection(db, 'users'), where('email', '==', 'gm@test.com')))
+      if (snap.empty) {
+        // Try to update the current user if they're logged in as gm@test.com
+        if (user?.email === 'gm@test.com' && user?.uid) {
+          await setDoc(doc(db, 'users', user.uid), {
+            email: 'gm@test.com',
+            name: 'GM Fleet Manager',
+            role: 'general_manager',
+            branch: null,
+            company_id: null,
+            is_admin: true,
+            is_active: 1,
+            createdAt: Timestamp.now(),
+          })
+          setStatus('Done! gm@test.com set to Fleet Manager. Refresh the page.')
+        } else {
+          setStatus('No user doc found for gm@test.com. Log in as gm@test.com first, then click this button.')
+        }
+        return
+      }
+      const userDoc = snap.docs[0]
+      await updateDoc(doc(db, 'users', userDoc.id), {
+        role: 'general_manager',
+        is_admin: true,
+      })
+      setStatus('Done! gm@test.com updated to Fleet Manager role with admin access. Refresh the page.')
+    } catch (err) {
+      setStatus('Error: ' + (err.message || String(err)))
+    }
   }
 
   return (
@@ -65,6 +101,12 @@ export default function FixUser() {
           style={{ background: '#059669', color: 'white', padding: '10px 24px', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer', border: 'none' }}
         >
           Create Fleet Finance Manager
+        </button>
+        <button
+          onClick={fixGmUser}
+          style={{ background: '#7c3aed', color: 'white', padding: '10px 24px', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer', border: 'none' }}
+        >
+          Set gm@test.com as Fleet Manager
         </button>
       </div>
     </div>

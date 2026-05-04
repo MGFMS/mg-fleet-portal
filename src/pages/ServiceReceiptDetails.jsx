@@ -553,6 +553,11 @@ function SourceAssessmentCard({ rwa, plate }) {
 // with type=Re-Assessment pre-selected. Falls back to a hint pointing
 // at My Garage if no appointment is found.
 function ReassessmentLauncher({ plateNo }) {
+  const { profile } = useAuth()
+  const role = String(profile?.role || '').toLowerCase()
+  // Fleet client users should not see the re-assessment button
+  if (role === 'fleet_client' || role === 'fleet_client_manager') return null
+
   const [apptId, setApptId] = useState(undefined) // undefined = loading
   useEffect(() => {
     let cancelled = false
