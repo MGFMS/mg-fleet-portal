@@ -5,7 +5,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { watchAppointments, APPT_STATUS } from '../lib/appointments'
+import { watchAppointments, updateAppointmentStatus, APPT_STATUS } from '../lib/appointments'
 import { FLEET_COMPANIES } from '../lib/dummyData'
 import StatusPill from '../components/ui/StatusPill'
 import PageHero, { HeroStat } from '../components/ui/PageHero'
@@ -80,8 +80,27 @@ export default function BookingRequests() {
     })
   }, [requests, clientFilter, statusFilter])
 
+  const [confirmCancel, setConfirmCancel] = useState(null)
+  const [cancelling, setCancelling] = useState(null)
+
   const handleBook = (appt) => {
     navigate(`/appointments?plate=${encodeURIComponent(appt.plateNo)}&company=${encodeURIComponent(appt.company || '')}&customer=${encodeURIComponent(appt.customer || '')}&requestId=${appt.id}&note=${encodeURIComponent(appt.note || '')}`)
+  }
+
+  const handleCreateBooking = () => {
+    navigate('/appointments?newBooking=true')
+  }
+
+  const handleCancel = async (appt) => {
+    setCancelling(appt.id)
+    try {
+      await updateAppointmentStatus(appt.id, APPT_STATUS.CANCELLED, 'Cancelled by call center')
+    } catch (err) {
+      console.error('[booking-requests] cancel failed:', err)
+    } finally {
+      setCancelling(null)
+      setConfirmCancel(null)
+    }
   }
 
   return (
@@ -169,21 +188,29 @@ export default function BookingRequests() {
                 )}
                 <div className="text-[11px] text-gray-400 mt-1">{formatDate(a.createdAt)}</div>
               </div>
-              {a.status === APPT_STATUS.PENDING_BOOKING && (
-                <div className="px-4 pb-3">
+              <div className="px-4 pb-3 flex gap-2">
+                {a.status === APPT_STATUS.PENDING_BOOKING && (
                   <button
                     type="button"
                     onClick={() => handleBook(a)}
-                    className="w-full text-sm bg-brand hover:bg-brand-dark text-white px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2"
+                    className="flex-1 text-sm bg-brand hover:bg-brand-dark text-white px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2"
                   >
                     <Icon name="calendar" className="w-4 h-4" />
-                    Book this Request
+                    Book
                   </button>
-                </div>
-              )}
-              {a.status === APPT_STATUS.PENDING_BRANCH_APPROVAL && (
-                <div className="px-4 pb-3 text-[11px] text-gray-400 italic">Scheduled — awaiting branch approval</div>
-              )}
+                )}
+                {a.status === APPT_STATUS.PENDING_BRANCH_APPROVAL && (
+                  <div className="flex-1 text-[11px] text-gray-400 italic flex items-center">Scheduled — awaiting branch</div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setConfirmCancel(a)}
+                  disabled={cancelling === a.id}
+                  className="text-sm bg-red-100 hover:bg-red-200 text-red-700 px-4 py-3 rounded-xl font-bold disabled:opacity-40"
+                >
+                  {cancelling === a.id ? '...' : 'Cancel'}
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -194,13 +221,13 @@ export default function BookingRequests() {
             <table className="min-w-full text-sm whitespace-nowrap">
               <thead className="bg-gray-50 text-xs uppercase tracking-wider text-gray-600">
                 <tr>
+                  <th className="px-4 py-3 text-center font-medium">Action</th>
                   <th className="px-4 py-3 text-left font-medium">Status</th>
                   <th className="px-4 py-3 text-left font-medium">Fleet Client</th>
                   <th className="px-4 py-3 text-left font-medium">Plate Number</th>
                   <th className="px-4 py-3 text-left font-medium">Requested By</th>
                   <th className="px-4 py-3 text-left font-medium">Date Requested</th>
                   <th className="px-4 py-3 text-left font-medium">Notes</th>
-                  <th className="px-4 py-3 text-right font-medium">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -209,6 +236,28 @@ export default function BookingRequests() {
                 )}
                 {filtered.map((a) => (
                   <tr key={a.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="inline-flex gap-1.5">
+                        {a.status === APPT_STATUS.PENDING_BOOKING && (
+                          <button
+                            type="button"
+                            onClick={() => handleBook(a)}
+                            className="bg-brand hover:bg-brand-dark text-white px-3 py-1.5 rounded-lg text-[10px] font-bold inline-flex items-center gap-1"
+                          >
+                            <Icon name="calendar" className="w-3 h-3" />
+                            Book
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setConfirmCancel(a)}
+                          disabled={cancelling === a.id}
+                          className="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 rounded-lg text-[10px] font-bold disabled:opacity-40"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </td>
                     <td className="px-4 py-3">
                       <StatusPill status={a.status === APPT_STATUS.PENDING_BOOKING ? 'PENDING REQUEST' : 'AWAITING BRANCH APPROVAL'} size="sm" />
                     </td>
@@ -221,20 +270,6 @@ export default function BookingRequests() {
                     <td className="px-4 py-3 text-gray-500 text-xs max-w-[200px] truncate">
                       {a.note && a.note !== 'BOOKING REQUESTED BY FLEET CLIENT' ? a.note : '—'}
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      {a.status === APPT_STATUS.PENDING_BOOKING ? (
-                        <button
-                          type="button"
-                          onClick={() => handleBook(a)}
-                          className="bg-brand hover:bg-brand-dark text-white px-4 py-2 rounded-lg text-xs font-bold inline-flex items-center gap-1.5"
-                        >
-                          <Icon name="calendar" className="w-3.5 h-3.5" />
-                          Book
-                        </button>
-                      ) : (
-                        <span className="text-xs text-gray-400 italic">Awaiting branch</span>
-                      )}
-                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -242,6 +277,49 @@ export default function BookingRequests() {
           </div>
         </div>
       </div>
+
+      {/* Create Booking button */}
+      <div className="fixed bottom-20 md:bottom-6 right-4 sm:right-6 z-20">
+        <button
+          onClick={handleCreateBooking}
+          className="bg-brand hover:bg-brand-dark text-white px-4 sm:px-5 py-3 rounded-full font-bold text-sm flex items-center gap-2 shadow-xl"
+        >
+          <Icon name="plus" className="w-4 h-4" />
+          Create Booking
+        </button>
+      </div>
+
+      {/* Cancel confirmation modal */}
+      {confirmCancel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="px-5 py-4">
+              <div className="text-sm font-bold text-red-700 mb-2">Cancel Request</div>
+              <div className="text-sm text-gray-600">
+                Cancel the booking request for <strong>{confirmCancel.plateNo}</strong>?
+                {confirmCancel.customer && <> ({confirmCancel.customer})</>}
+              </div>
+            </div>
+            <div className="px-5 pb-5 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmCancel(null)}
+                className="flex-1 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 px-4 py-3 rounded-xl"
+              >
+                Keep
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCancel(confirmCancel)}
+                disabled={cancelling === confirmCancel.id}
+                className="flex-1 text-sm font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-40 px-4 py-3 rounded-xl shadow"
+              >
+                {cancelling === confirmCancel.id ? 'Cancelling...' : 'Cancel Request'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

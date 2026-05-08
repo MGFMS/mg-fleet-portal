@@ -329,17 +329,31 @@ export async function enrichItemsWithCatalogPrices(items, { makeId, modelId } = 
     const subject = stripDescriptionPrefix(item.description)
     if (!subject) { enriched.push(item); continue }
     try {
-      const pool = item.type === 'Labor'
-        ? await searchLabor({ makeId, modelId, term: subject })
-        : await searchPartsAndConsumables({ makeId, modelId, term: subject })
-      // Pick the highest-scoring candidate; require at least 100 to
-      // avoid stamping a price from a marginal token-overlap match.
+      // Try full subject first, then individual significant words
+      const searchTerms = [subject]
+      const words = subject.split(/\s+/).filter((w) => w.length >= 4)
+      if (words.length > 1) {
+        // Try 2-word combos
+        for (let i = 0; i < words.length - 1; i++) {
+          searchTerms.push(`${words[i]} ${words[i + 1]}`)
+        }
+        // Try individual words
+        words.forEach((w) => searchTerms.push(w))
+      }
+
       let best = null
       let bestScore = 99
-      for (const cand of pool) {
-        const score = scoreMatch(subject, cand.name)
-        if (score > bestScore) { best = cand; bestScore = score }
+      for (const term of searchTerms) {
+        const pool = item.type === 'Labor'
+          ? await searchLabor({ makeId, modelId, term })
+          : await searchPartsAndConsumables({ makeId, modelId, term })
+        for (const cand of pool) {
+          const score = scoreMatch(subject, cand.name)
+          if (score > bestScore) { best = cand; bestScore = score }
+        }
+        if (bestScore >= 500) break // exact or contains match, stop searching
       }
+
       if (best) {
         enriched.push({ ...item, unitCost: Number(best.unitCost) || Number(best.srp) || 0 })
       } else {

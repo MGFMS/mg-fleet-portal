@@ -135,8 +135,12 @@ export async function searchLabor({ makeId, modelId, term }) {
   const t = normName(term)
   if (!Number.isFinite(makeId) || !Number.isFinite(modelId)) return []
   const services = await fetchServicesForVehicle(makeId, modelId)
+  const tTokens = t ? t.split(/\s+/).filter((w) => w.length >= 3) : []
   const filtered = t
-    ? services.filter((s) => normName(s.serviceDesc).includes(t))
+    ? services.filter((s) => {
+        const desc = normName(s.serviceDesc)
+        return desc.includes(t) || tTokens.some((tok) => desc.includes(tok))
+      })
     : services
   return filtered.slice(0, 12).map((s) => ({
     code: s.serviceCode || `SVC-${s.serviceId}`,
@@ -160,8 +164,12 @@ export async function searchPartsAndConsumables({ makeId, modelId, term }) {
       : Promise.resolve([]),
     fetchAllConsumables(),
   ])
+  const tTokens = t ? t.split(/\s+/).filter((w) => w.length >= 3) : []
   const partResults = (t
-    ? parts.filter((p) => normName(p.partsDesc).includes(t))
+    ? parts.filter((p) => {
+        const desc = normName(p.partsDesc)
+        return desc.includes(t) || tTokens.some((tok) => desc.includes(tok))
+      })
     : parts
   ).slice(0, 8).map((p) => ({
     code: p.productCode || `PRT-${p.partsId}`,
@@ -174,7 +182,10 @@ export async function searchPartsAndConsumables({ makeId, modelId, term }) {
     supplier: p.supplierId != null ? `S#${p.supplierId}` : null,
   }))
   const consumableResults = (t
-    ? consumables.filter((c) => normName(c.consumableDesc).includes(t))
+    ? consumables.filter((c) => {
+        const desc = normName(c.consumableDesc)
+        return desc.includes(t) || tTokens.some((tok) => desc.includes(tok))
+      })
     : consumables
   ).slice(0, 8).map((c) => ({
     code: c.consumableCode || `CON-${c.consumableId}`,

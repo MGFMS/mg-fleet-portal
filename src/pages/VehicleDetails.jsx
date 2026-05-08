@@ -433,7 +433,12 @@ function ServiceLogs({ plateNo, profile }) {
 
 // Compact card for an in-flight booking — rebuilt in brand red to match the
 // rest of round 2. Action buttons stack on mobile so they're all tappable.
+const WARRIOR_ROLES = new Set(['field_assessor', 'warrior', 'dispatcher', 'technician'])
+
 function CurrentBookingCard({ appt, navigate }) {
+  const { profile } = useAuth()
+  const role = String(profile?.role || '').toLowerCase()
+  const isWarrior = WARRIOR_ROLES.has(role)
   const canAssess = appt.status === APPT_STATUS.ARRIVED || appt.status === APPT_STATUS.ONGOING
   const canRecordPms = [APPT_STATUS.ARRIVED, APPT_STATUS.ONGOING, APPT_STATUS.DIAGNOSED].includes(appt.status)
   return (
@@ -456,12 +461,14 @@ function CurrentBookingCard({ appt, navigate }) {
         </div>
         {appt.note && <div className="text-xs text-gray-600 italic">"{appt.note}"</div>}
         <div className="grid grid-cols-2 gap-2 pt-1">
-          <button
-            onClick={() => navigate('/appointments')}
-            className="col-span-2 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg font-semibold"
-          >
-            Open Booking
-          </button>
+          {!isWarrior && (
+            <button
+              onClick={() => navigate('/appointments')}
+              className="col-span-2 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg font-semibold"
+            >
+              Open Booking
+            </button>
+          )}
           {canAssess && (
             <button
               onClick={() => navigate(`/appointments/${appt.id}/assess`)}

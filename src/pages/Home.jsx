@@ -8,6 +8,7 @@ import { BRANCHES } from '../lib/dummyData'
 import { useAuth } from '../context/AuthContext'
 import { canAssess, canReviewAtBranch, canBookingRequests } from '../lib/roles'
 import { updateAppointmentStatus } from '../lib/appointments'
+import { getApprovedQuotationForPlate } from '../lib/serviceReceipts'
 
 const WARRIOR_ROLES = new Set(['field_assessor', 'warrior', 'dispatcher', 'technician'])
 const CROSS_BRANCH_ROLES = new Set(['general_manager', 'call_center'])
@@ -212,7 +213,7 @@ export default function Home() {
       </div>
 
       <div className="px-3 sm:px-6 pt-5 space-y-4">
-        {(String(profile?.role || '').toLowerCase() === 'finance' || String(profile?.role || '').toLowerCase() === 'finance_head') && (
+        {(['finance', 'finance_head', 'general_manager'].includes(role)) && (
           <FinanceSnapshot profile={profile} />
         )}
 
@@ -319,6 +320,34 @@ function AppointmentCard({ appt }) {
   const [statusBusy, setStatusBusy] = useState(false)
   const [statusError, setStatusError] = useState(null)
 
+  // Check if fix has been made (re-assessment with replaced items exists)
+  const [fixStatus, setFixStatus] = useState(null) // null=loading, 'none', 'fixed', 'invoiced'
+  useEffect(() => {
+    if (!appt.plateNo) { setFixStatus('none'); return }
+    let cancelled = false
+    ;(async () => {
+      try {
+        // Check if invoice already created
+        const { getDocs, query, where, collection } = await import('firebase/firestore')
+        const { db } = await import('../lib/firebase')
+        const invSnap = await getDocs(query(collection(db, 'branchInvoices'), where('plateNo', '==', appt.plateNo)))
+        const hasInvoice = invSnap.docs.some((d) => d.data().status !== 'VOID')
+        if (hasInvoice) { if (!cancelled) setFixStatus('invoiced'); return }
+
+        // Check if re-assessment with fixes exists
+        const assessSnap = await getDocs(query(collection(db, 'assessments')))
+        const hasFixed = assessSnap.docs.some((d) => {
+          const data = d.data()
+          const plate = String(data?.header?.plate || '').toUpperCase().replace(/\s+/g, '')
+          if (plate !== appt.plateNo.toUpperCase().replace(/\s+/g, '')) return false
+          return Object.values(data.itemResults || {}).some((r) => r.resultCode === 'replaced')
+        })
+        if (!cancelled) setFixStatus(hasFixed ? 'fixed' : 'none')
+      } catch { if (!cancelled) setFixStatus('none') }
+    })()
+    return () => { cancelled = true }
+  }, [appt.plateNo, appt.status])
+
   const hasMechanic = appt.mechanic && appt.mechanic !== 'Not yet assigned'
   const assessHref = hasMechanic
     ? `/appointments/${appt.id}/assess`
@@ -343,7 +372,22 @@ function AppointmentCard({ appt }) {
     finally { setStatusBusy(false) }
   }
 
+  const canViewInvoice = ['general_manager', 'admin_supervisor', 'operations_manager', 'admin_assistance', 'finance', 'finance_head'].includes(role)
+
   const handleCardClick = () => {
+    // Completed items: link to invoice for authorized roles
+    if (appt.status === 'COMPLETED' && canViewInvoice) {
+      const invoiceMatch = (appt.note || '').match(/invoice\s+(INV-[^\s]+)/i)
+      if (invoiceMatch) {
+        navigate(`/branch-invoices/${invoiceMatch[1]}`)
+        return
+      }
+    }
+    // Diagnosed or Ongoing: link to the latest assessment
+    if ((appt.status === 'DIAGNOSED' || appt.status === 'ONGOING') && appt.rwaNumber) {
+      navigate(`/assessments/${appt.rwaNumber}`)
+      return
+    }
     if (canAssign && !isPending) navigate(assignHref)
     else navigate(`/vehicles/${appt.plateNo}`)
   }
@@ -382,7 +426,17 @@ function AppointmentCard({ appt }) {
       <div className="mt-2 text-[10px] text-gray-600 bg-gray-50 rounded-lg px-2 py-1 leading-tight">
         {appt.note ? `"${appt.note}"` : '-'}
       </div>
-      {showAssess && appt.status !== 'COMPLETED' && (
+      {fixStatus === 'fixed' && appt.status === 'DIAGNOSED' && (
+        <div className="mt-1.5 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1">
+          Waiting to create invoice
+        </div>
+      )}
+      {fixStatus === 'invoiced' && appt.status === 'DIAGNOSED' && (
+        <div className="mt-1.5 text-[10px] font-bold text-green-700 bg-green-50 border border-green-200 rounded-lg px-2 py-1">
+          Invoice created
+        </div>
+      )}
+      {showAssess && appt.status !== 'COMPLETED' && appt.status !== 'DIAGNOSED' && appt.status !== 'ONGOING' && appt.status !== 'PENDING' && (
         <button
           type="button"
           onClick={(e) => {
@@ -398,13 +452,19 @@ function AppointmentCard({ appt }) {
           ASSESS
         </button>
       )}
+      {showAssess && appt.status === 'ONGOING' && (
+        <ReAssessButton appt={appt} navigate={navigate} />
+      )}
       {isBranchUser && !isPending && (() => {
         const s = appt.status
         const btns = []
         if (s === 'BOOKED' || s === 'CONFIRMED' || s === 'TENTATIVE') {
           btns.push({ next: 'ARRIVED', label: 'Mark Arrived', note: 'Vehicle arrived', cls: 'bg-sky-100 text-sky-700 hover:bg-sky-200' })
         }
-        if (s === 'ARRIVED' || s === 'DIAGNOSED') {
+        if (s === 'ARRIVED') {
+          btns.push({ next: 'ONGOING', label: 'Start Service', note: 'Service started', cls: 'bg-blue-100 text-blue-700 hover:bg-blue-200' })
+        }
+        if (s === 'DIAGNOSED' && fixStatus === 'none') {
           btns.push({ next: 'ONGOING', label: 'Start Service', note: 'Service started', cls: 'bg-blue-100 text-blue-700 hover:bg-blue-200' })
         }
         if (s === 'ONGOING') {
@@ -506,6 +566,31 @@ function AppointmentCard({ appt }) {
         </div>
       )}
     </div>
+  )
+}
+
+function ReAssessButton({ appt, navigate }) {
+  const [hasApproved, setHasApproved] = useState(null) // null=loading, true/false
+  useEffect(() => {
+    if (!appt.plateNo) { setHasApproved(false); return }
+    getApprovedQuotationForPlate(appt.plateNo).then((q) => setHasApproved(Boolean(q)))
+      .catch(() => setHasApproved(false))
+  }, [appt.plateNo])
+
+  if (hasApproved === null) return null // loading
+  if (!hasApproved) return null // no approved quotation
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation()
+        navigate(`/appointments/${appt.id}/assess?type=Re-Assessment`)
+      }}
+      className="block mt-2 w-full bg-blue-700 hover:bg-blue-800 text-white text-[11px] font-bold rounded-lg px-2 py-1.5 text-center"
+    >
+      RE-ASSESS
+    </button>
   )
 }
 

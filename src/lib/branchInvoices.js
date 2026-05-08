@@ -326,10 +326,32 @@ export async function generateBranchInvoice(quotationId, { byProfile, plateAsses
     receiptId: ref.id,
     link: `/branch-invoices/${code}`,
     branch,
-    // Internal hop only — branch ↔ MG Fleet. Client doesn't see branch-side
-    // billing; they see the MG-Fleet-to-client bill when Round 13 ships.
     company: null,
   })
+
+  // Tag the vehicle's appointment as COMPLETED
+  if (quot.plateNo) {
+    try {
+      const apptSnap = await getDocs(query(
+        collection(db, 'appointments'),
+        where('plateNo', '==', quot.plateNo),
+      ))
+      const activeStatuses = new Set(['ARRIVED', 'ONGOING', 'DIAGNOSED', 'PENDING'])
+      for (const d of apptSnap.docs) {
+        if (activeStatuses.has(d.data().status)) {
+          await updateDoc(doc(db, 'appointments', d.id), {
+            status: 'COMPLETED',
+            note: `Service completed — invoice ${code} issued`,
+            updatedAt: serverTimestamp(),
+            updatedBy: uid,
+          })
+          break
+        }
+      }
+    } catch (err) {
+      console.warn('[branchInvoices] failed to complete appointment:', err?.message || err)
+    }
+  }
 
   return { id: ref.id, ...payload, issuedAt: nowIso }
 }

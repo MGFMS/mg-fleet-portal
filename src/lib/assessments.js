@@ -353,31 +353,52 @@ export async function createAssessment({ appointmentId, header, itemResults, pms
     }
   }
 
-  emitNotification({
-    kind: 'status',
-    title: `${header.plate} — assessed (${classification.overallStatus.toUpperCase()})`,
-    body: classification.dispatchAllowed
-      ? `${rwaNumber} · ${classification.failCriticalCount} critical · ${classification.monitorCount} monitor`
-      : `${rwaNumber} · ⛔ Unit on hold`,
-    plateNo: header.plate,
-    appointmentId: appointmentId || null,
-    link: `/assessments/${rwaNumber}`,
-    branch: header.branch || null,
-    company: header.client || null,
-  })
+  const isReAssessment = header.type === 'Re-Assessment'
+  const isQuickFix = pmsData?.notes === 'Quick Fix'
+  const hasReplacedItems = Object.values(assessment.itemResults || {}).some((r) => r.resultCode === 'replaced')
 
-  // Notify branch supervisors that assessment is ready for quotation
-  emitNotification({
-    kind: 'quotation',
-    title: `${header.plate} — ready for quotation`,
-    body: `${rwaNumber} · Assessment completed by ${header.technician || 'assessor'} · awaiting quotation`,
-    plateNo: header.plate,
-    appointmentId: appointmentId || null,
-    link: `/assessments/${rwaNumber}`,
-    branch: header.branch || null,
-    company: null,
-    target_roles: ['admin_supervisor', 'admin_assistance', 'operations_manager'],
-  })
+  if (isReAssessment || isQuickFix || hasReplacedItems) {
+    // Re-Assessment or Quick Fix — notify branch that fixes are done, ready to invoice
+    const fixType = isQuickFix ? 'Quick fix' : 'Re-assessment'
+    emitNotification({
+      kind: 'status',
+      title: `${header.plate} — ${fixType} completed. Ready to invoice`,
+      body: `${rwaNumber} · ${fixType} by ${header.technician || 'assessor'}`,
+      plateNo: header.plate,
+      appointmentId: appointmentId || null,
+      link: `/assessments/${rwaNumber}`,
+      branch: header.branch || null,
+      company: null,
+      target_roles: ['admin_supervisor', 'admin_assistance', 'operations_manager'],
+    })
+  } else {
+    // Initial / Periodic assessment
+    emitNotification({
+      kind: 'status',
+      title: `${header.plate} — assessed (${classification.overallStatus.toUpperCase()})`,
+      body: classification.dispatchAllowed
+        ? `${rwaNumber} · ${classification.failCriticalCount} critical · ${classification.monitorCount} monitor`
+        : `${rwaNumber} · ⛔ Unit on hold`,
+      plateNo: header.plate,
+      appointmentId: appointmentId || null,
+      link: `/assessments/${rwaNumber}`,
+      branch: header.branch || null,
+      company: header.client || null,
+    })
+
+    // Notify branch supervisors that assessment is ready for quotation
+    emitNotification({
+      kind: 'quotation',
+      title: `${header.plate} — ready for quotation`,
+      body: `${rwaNumber} · Assessment completed by ${header.technician || 'assessor'} · awaiting quotation`,
+      plateNo: header.plate,
+      appointmentId: appointmentId || null,
+      link: `/assessments/${rwaNumber}`,
+      branch: header.branch || null,
+      company: null,
+      target_roles: ['admin_supervisor', 'admin_assistance', 'operations_manager'],
+    })
+  }
 
   return { id: ref.id, rwaNumber, classification }
 }

@@ -70,7 +70,8 @@ export default function ServiceBooking() {
   const [selectedBranch, setSelectedBranch] = useState(userBranch || BRANCHES[0])
   const [showBranchPicker, setShowBranchPicker] = useState(false)
   const branch = canSwitchBranch ? selectedBranch : (userBranch || BRANCHES[0])
-  const canReview = canReviewAtBranch(profile?.role) || profile?.is_admin
+  const isFleetMgrOrCC = CROSS_BRANCH_ROLES.has(role)
+  const canReview = (canReviewAtBranch(profile?.role) || profile?.is_admin) && !isFleetMgrOrCC
 
   // URL params from BookingRequests page — capture into state immediately
   // so they survive the searchParams clear below.
@@ -79,7 +80,8 @@ export default function ServiceBooking() {
   const [urlCustomer] = useState(() => searchParams.get('customer') || '')
   const [urlRequestId] = useState(() => searchParams.get('requestId') || '')
   const [urlNote] = useState(() => searchParams.get('note') || '')
-  const autoOpen = Boolean(urlPlate)
+  const [urlNewBooking] = useState(() => searchParams.get('newBooking') === 'true')
+  const autoOpen = Boolean(urlPlate) || urlNewBooking
 
   const [showPanel, setShowPanel] = useState(autoOpen)
   const [editId, setEditId] = useState(null)
@@ -316,16 +318,18 @@ export default function ServiceBooking() {
         </section>
       </div>
 
-      {/* Floating + New Booking */}
-      <div className="fixed bottom-20 md:bottom-6 right-4 sm:right-6 z-20">
-        <button
-          onClick={() => { setEditId(null); setShowPanel(true) }}
-          className="bg-brand hover:bg-brand-dark text-white rounded-full pl-4 pr-5 py-3 shadow-xl font-bold text-sm flex items-center gap-2"
-        >
-          <Icon name="plus" className="w-4 h-4" />
-          New Booking
-        </button>
-      </div>
+      {/* Floating + New Booking — only for fleet manager and call center */}
+      {canSwitchBranch && (
+        <div className="fixed bottom-20 md:bottom-6 right-4 sm:right-6 z-20">
+          <button
+            onClick={() => { setEditId(null); setShowPanel(true) }}
+            className="bg-brand hover:bg-brand-dark text-white rounded-full pl-4 pr-5 py-3 shadow-xl font-bold text-sm flex items-center gap-2"
+          >
+            <Icon name="plus" className="w-4 h-4" />
+            New Booking
+          </button>
+        </div>
+      )}
 
       <SlidePanel open={showPanel} onClose={() => setShowPanel(false)} title="Service Booking">
         <BookingForm
@@ -340,6 +344,8 @@ export default function ServiceBooking() {
           prefillCustomer={urlCustomer}
           prefillNote={urlNote}
           requestId={urlRequestId}
+          canSwitchBranch={canSwitchBranch}
+          onBranchChange={(b) => { if (canSwitchBranch) setSelectedBranch(b) }}
           onClose={() => setShowPanel(false)}
         />
       </SlidePanel>
@@ -378,10 +384,12 @@ function BookingCard({ appt, onClick }) {
   )
 }
 
-function BookingForm({ editId, branch, appointments, vehicles, fleetCompanies, assessors, prefillPlate, prefillCompany, prefillCustomer, prefillNote, requestId, onClose }) {
+function BookingForm({ editId, branch, appointments, vehicles, fleetCompanies, assessors, prefillPlate, prefillCompany, prefillCustomer, prefillNote, requestId, canSwitchBranch, onBranchChange, onClose }) {
   const navigate = useNavigate()
   const { profile } = useAuth()
-  const canReview = canReviewAtBranch(profile?.role) || profile?.is_admin
+  const roleStr = String(profile?.role || '').toLowerCase()
+  const isFleetMgrOrCallCenter = roleStr === 'general_manager' || roleStr === 'call_center'
+  const canReview = (canReviewAtBranch(profile?.role) || profile?.is_admin) && !isFleetMgrOrCallCenter
   const existing = editId ? appointments.find((a) => a.id === editId) : null
 
   // Resolve a company value (could be code, name, or doc ID) to the dropdown value
@@ -409,7 +417,7 @@ function BookingForm({ editId, branch, appointments, vehicles, fleetCompanies, a
 
   const [walkin, setWalkin] = useState(false)
   const [tentative, setTentative] = useState(false)
-  const [custType, setCustType] = useState(existing ? 'old' : (initCompany ? 'fleet' : 'new'))
+  const [custType, setCustType] = useState('fleet')
   const [plate, setPlate] = useState(existing?.plateNo || prefillPlate || '')
   const [customer, setCustomer] = useState(existing?.customer || prefillCustomer || '')
   const [mobile, setMobile] = useState(existing?.mobile || '')
@@ -649,7 +657,12 @@ function BookingForm({ editId, branch, appointments, vehicles, fleetCompanies, a
       )}
 
       <Row label="Service Center">
-        <select value={branch} disabled className="input">
+        <select
+          value={branch}
+          disabled={!canSwitchBranch}
+          onChange={(e) => onBranchChange?.(e.target.value)}
+          className={`input ${!canSwitchBranch ? 'bg-gray-50' : ''}`}
+        >
           {BRANCHES.map((b) => <option key={b}>{b}</option>)}
         </select>
         <label className="flex items-center gap-1.5 mt-2 text-xs">
@@ -681,14 +694,6 @@ function BookingForm({ editId, branch, appointments, vehicles, fleetCompanies, a
         </label>
       </Row>
 
-      <div className="flex items-center gap-4 text-xs">
-        {['new', 'old', 'fleet'].map((t) => (
-          <label key={t} className="flex items-center gap-1">
-            <input type="radio" name="custType" value={t} checked={custType === t} onChange={(e) => setCustType(e.target.value)} />
-            <span className="uppercase">{t === 'old' ? 'Old Customer' : t === 'new' ? 'New Customer' : 'FLEET'}</span>
-          </label>
-        ))}
-      </div>
 
       <Row label="Plate No.*">
         <PlatePicker

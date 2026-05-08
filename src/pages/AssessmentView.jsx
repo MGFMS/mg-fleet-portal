@@ -870,17 +870,34 @@ function PostAssessCta({ a }) {
   const cannotCreateQuote = isWarrior || isFleetMgr
 
   const plate = a?.header?.plate || ''
+  const isReAssessment = a?.header?.type === 'Re-Assessment'
+  const assessmentDate = a?.submittedAt ? new Date(a.submittedAt).getTime() : 0
   const [state, setState] = useState({ loading: true, approved: null })
   useEffect(() => {
     if (!plate) { setState({ loading: false, approved: null }); return }
     let cancelled = false
     getApprovedQuotationForPlate(plate).then((quot) => {
-      if (!cancelled) setState({ loading: false, approved: quot })
+      if (!cancelled) {
+        // Re-Assessments always show the approved quotation (they follow
+        // the approval flow — the quotation is from the same booking).
+        // Initial/Periodic assessments only show quotations created after
+        // the assessment — older ones belong to a previous booking.
+        if (quot && assessmentDate && !isReAssessment) {
+          const quotDate = Date.parse(
+            quot.updatedAt?.toDate?.()?.toISOString?.() || quot.updatedAt || quot.createdAt || ''
+          ) || 0
+          if (quotDate < assessmentDate) {
+            setState({ loading: false, approved: null })
+            return
+          }
+        }
+        setState({ loading: false, approved: quot })
+      }
     }).catch(() => {
       if (!cancelled) setState({ loading: false, approved: null })
     })
     return () => { cancelled = true }
-  }, [plate])
+  }, [plate, assessmentDate, isReAssessment])
 
   if (state.loading) {
     return (
@@ -943,7 +960,7 @@ function PostAssessCta({ a }) {
             Assessment is in. Build the quotation from these findings to start the approval chain.
           </div>
           <Link
-            to={`/quotations/create?plate=${encodeURIComponent(plate)}&fromAssessment=${encodeURIComponent(a.rwaNumber || '')}`}
+            to={`/quotations/create?plate=${encodeURIComponent(plate)}&fromAssessment=${encodeURIComponent(a.rwaNumber || '')}${a.appointmentId ? `&appointmentId=${encodeURIComponent(a.appointmentId)}` : ''}`}
             className="inline-block mt-3 bg-brand hover:bg-brand-dark text-white text-xs font-bold px-4 py-2 rounded-full shadow"
           >
             Create Quotation →

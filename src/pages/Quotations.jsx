@@ -303,17 +303,6 @@ export default function Quotations({ unbilledOnly = false, customerView: custome
         </div>
       </div>
 
-      {!customerView && !isFleetMgr && (
-        <div className="fixed bottom-20 md:bottom-6 right-4 sm:right-6 z-20">
-          <Link
-            to="/quotations/create"
-            className="bg-brand hover:bg-brand-dark text-white px-4 sm:px-5 py-3 rounded-full font-bold text-sm flex items-center gap-2 shadow-xl"
-          >
-            <Icon name="plus" className="w-4 h-4" />
-            Create Quotation
-          </Link>
-        </div>
-      )}
     </div>
   )
 }

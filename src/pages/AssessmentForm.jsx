@@ -114,7 +114,11 @@ export default function AssessmentForm() {
   // Matches mg-fms-app/src/App.jsx (startReassess + screen="reassess-mode").
   const [prevAssessment, setPrevAssessment] = useState(initialDraft?.prevAssessment || null)
   const [prevLoading, setPrevLoading] = useState(false)
-  const [reassessMode, setReassessMode] = useState(initialDraft?.reassessMode || null)
+  const [reassessMode, setReassessMode] = useState(() => {
+    // URL type param forces the mode chooser to show (reset any draft mode)
+    if (searchParams.get('type') === 'Re-Assessment') return null
+    return initialDraft?.reassessMode || null
+  })
   const prefilledKeyRef = useRef('')
 
   // Load the parent appointment + vehicle registry in parallel. Only fires
@@ -231,19 +235,32 @@ export default function AssessmentForm() {
         return next
       })
     } else if (header.type === 'Re-Assessment' && prevAssessment) {
-      const flagged = activeItemSet instanceof Set ? activeItemSet : new Set()
-      setItemResults((prev) => {
-        const next = { ...prev }
-        for (const i of ALL_ITEMS) {
-          if (flagged.has(i.code)) continue // needs re-rating
-          const r = prevAssessment.itemResults?.[i.code]
-          if (r && !next[i.code]?.resultCode) next[i.code] = { ...r }
-        }
-        return next
-      })
+      if (reassessMode === 'full') {
+        // Full re-assessment: pre-fill ALL items from previous assessment
+        setItemResults((prev) => {
+          const next = { ...prev }
+          for (const i of ALL_ITEMS) {
+            const r = prevAssessment.itemResults?.[i.code]
+            if (r && !next[i.code]?.resultCode) next[i.code] = { ...r }
+          }
+          return next
+        })
+      } else {
+        // Default: only pre-fill non-flagged items, flagged items need re-rating
+        const flagged = activeItemSet instanceof Set ? activeItemSet : new Set()
+        setItemResults((prev) => {
+          const next = { ...prev }
+          for (const i of ALL_ITEMS) {
+            if (flagged.has(i.code)) continue
+            const r = prevAssessment.itemResults?.[i.code]
+            if (r && !next[i.code]?.resultCode) next[i.code] = { ...r }
+          }
+          return next
+        })
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [header.type, prevAssessment, loading])
+  }, [header.type, prevAssessment, loading, reassessMode])
 
   // Live classification + score. Recomputed on every itemResult change.
   const classification = useMemo(() => runEngine(itemResults), [itemResults])
@@ -256,18 +273,20 @@ export default function AssessmentForm() {
 
   // Active = the items the inspector actually has to rate. For Initial /
   // Periodic that's every item. For Pre-Dispatch it's safety-critical items.
-  // For Re-Assessment it's previously-flagged items only.
+  // For Re-Assessment: full mode = all items; default = flagged items only.
   const activeItems = useMemo(() => {
+    if (reassessMode === 'full') return ALL_ITEMS
     if (!(activeItemSet instanceof Set)) return ALL_ITEMS
     return ALL_ITEMS.filter((i) => activeItemSet.has(i.code))
-  }, [activeItemSet])
+  }, [activeItemSet, reassessMode])
 
   const activeCategories = useMemo(() => {
+    if (reassessMode === 'full') return CATEGORIES
     if (!(activeItemSet instanceof Set)) return CATEGORIES
     return CATEGORIES
       .map((c) => ({ ...c, items: c.items.filter((i) => activeItemSet.has(i.code)) }))
       .filter((c) => c.items.length > 0)
-  }, [activeItemSet])
+  }, [activeItemSet, reassessMode])
 
   const answered = useMemo(
     () => activeItems.filter((i) => {

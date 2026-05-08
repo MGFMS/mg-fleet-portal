@@ -151,6 +151,56 @@ export default function FixUser() {
     }
   }
 
+  const revertInvoice = async () => {
+    setStatus('Reverting invoice for III0495...')
+    try {
+      const { getDocs, query, where, collection: col, doc: docRef, updateDoc: updDoc, serverTimestamp: srvTs } = await import('firebase/firestore')
+      const results = []
+
+      // Void branch invoices for III0495
+      const invSnap = await getDocs(query(col(db, 'branchInvoices'), where('plateNo', '==', 'III0495')))
+      for (const d of invSnap.docs) {
+        try {
+          await updDoc(docRef(db, 'branchInvoices', d.id), { status: 'VOID', updatedAt: srvTs() })
+          results.push('Invoice voided')
+        } catch (e) { results.push('Invoice void failed: ' + e.message) }
+      }
+
+      // Reset quotation's branchInvoice fields
+      const qSnap = await getDocs(query(col(db, 'serviceReceipts'), where('plateNo', '==', 'III0495'), where('kind', '==', 'quotation')))
+      for (const d of qSnap.docs) {
+        try {
+          await updDoc(docRef(db, 'serviceReceipts', d.id), {
+            branchInvoiceId: null,
+            branchInvoiceCode: null,
+            branchInvoicedAt: null,
+            updatedAt: srvTs(),
+          })
+          results.push('Quotation reset')
+        } catch (e) { results.push('Quotation reset failed: ' + e.message) }
+      }
+
+      // Reset appointment back to ONGOING
+      const apptSnap = await getDocs(query(col(db, 'appointments'), where('plateNo', '==', 'III0495')))
+      for (const d of apptSnap.docs) {
+        if (d.data().status === 'COMPLETED') {
+          try {
+            await updDoc(docRef(db, 'appointments', d.id), {
+              status: 'ONGOING',
+              note: 'Reverted for testing',
+              updatedAt: srvTs(),
+            })
+            results.push('Appointment → ONGOING')
+          } catch (e) { results.push('Appointment update failed: ' + e.message) }
+        }
+      }
+
+      setStatus('Results: ' + results.join(' | '))
+    } catch (err) {
+      setStatus('Error: ' + (err.message || String(err)))
+    }
+  }
+
   return (
     <div style={{ padding: 40, fontFamily: 'sans-serif' }}>
       <h1 style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 16 }}>Fix User</h1>
@@ -188,6 +238,12 @@ export default function FixUser() {
           style={{ background: '#d97706', color: 'white', padding: '10px 24px', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer', border: 'none' }}
         >
           Create 3 Purefoods Vehicles
+        </button>
+        <button
+          onClick={revertInvoice}
+          style={{ background: '#dc2626', color: 'white', padding: '10px 24px', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer', border: 'none' }}
+        >
+          Revert Invoice (III0495)
         </button>
       </div>
     </div>
